@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import { SignedIn, SignedOut, SignInButton } from "@clerk/nextjs";
 import { productsAPI, costsAPI, scenariosAPI } from "@/lib/api";
 import type { Product, CostItem, CostScenario } from "@/types";
-import CSVImport from "@/components/CSVImport";
 import ProductList from "@/components/ProductList";
 import ResourceList from "@/components/ResourceList";
 import TaskList from "@/components/TaskList";
@@ -32,7 +31,6 @@ export default function Home() {
   const [scenarios, setScenarios] = useState<CostScenario[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [showImport, setShowImport] = useState(false);
   const [activeTab, setActiveTab] = useState<"workspace" | "management">(
     "workspace"
   );
@@ -140,17 +138,6 @@ export default function Home() {
         <div className="flex gap-3 items-center">
           <ThemeToggle />
           <SignedIn>
-            <Button
-              onClick={() => {
-                setShowImport(!showImport);
-                if (!showImport) {
-                  setActiveTab("workspace");
-                }
-              }}
-              variant={showImport ? "secondary" : "default"}
-            >
-              {showImport ? "Close Import" : "Import CSV"}
-            </Button>
             <Link href="/organization">
               <Button variant="outline" size="sm">
                 <Settings className="h-4 w-4 mr-2" />
@@ -182,26 +169,8 @@ export default function Home() {
       </SignedOut>
 
       <SignedIn>
-        {showImport ? (
-          <div>
-            <CSVImport
-              onImportSuccess={() => {
-                loadData();
-                // Auto-switch to dashboard after successful import
-                setTimeout(() => {
-                  setShowImport(false);
-                  setActiveTab("workspace");
-                }, 2000);
-              }}
-            />
-            <div className="mt-5 p-3 bg-accent border border-border rounded-lg text-foreground">
-              <strong>Note:</strong> After importing, you'll be automatically
-              redirected to the dashboard.
-            </div>
-          </div>
-        ) : (
-          <>
-            {/* Primary Navigation */}
+        <>
+          {/* Primary Navigation */}
             <div className="flex gap-2 mb-5 border-b-2 border-border">
               <Button
                 type="button"
@@ -363,9 +332,7 @@ export default function Home() {
                 )}
               </>
             )}
-          </>
-        )}
-
+        </>
       </SignedIn>
     </div>
   );
