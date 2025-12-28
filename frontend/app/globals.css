@@ -1,0 +1,422 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+    --primary: 221.2 83.2% 53.3%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 221.2 83.2% 53.3%;
+    --radius: 0.5rem;
+    
+    /* Status colors */
+    --status-todo: 107 114 128; /* gray-500 */
+    --status-in-progress: 59 130 246; /* blue-500 */
+    --status-blocked: 239 68 68; /* red-500 */
+    --status-done: 34 197 94; /* green-500 */
+    --status-discovery: 14 165 233; /* sky-500 */
+    --status-design: 245 158 11; /* amber-500 */
+    --status-development: 59 130 246; /* blue-500 */
+    --status-shipped: 34 197 94; /* green-500 */
+    --status-archived: 156 163 175; /* gray-400 */
+    
+    /* Priority colors */
+    --priority-low: 34 197 94; /* green-500 */
+    --priority-medium: 245 158 11; /* amber-500 */
+    --priority-high: 217 119 6; /* amber-600 */
+    --priority-critical: 239 68 68; /* red-500 */
+  }
+
+  .dark {
+    /* High contrast dark mode for accessibility */
+    --background: 222.2 84% 4.9%; /* Very dark blue-gray */
+    --foreground: 210 40% 98%; /* Very light, high contrast text */
+    --card: 217.2 32.6% 12%; /* Slightly lighter than background for depth */
+    --card-foreground: 210 40% 98%; /* High contrast text on cards */
+    --popover: 217.2 32.6% 12%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 217.2 91.2% 65%; /* Brighter primary for visibility */
+    --primary-foreground: 222.2 47.4% 11.2%; /* Dark text on primary button */
+    --secondary: 217.2 32.6% 20%; /* Lighter secondary for visibility */
+    --secondary-foreground: 210 40% 98%; /* High contrast text */
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 75%; /* Lighter muted text for readability */
+    --accent: 217.2 32.6% 20%; /* Lighter accent for visibility */
+    --accent-foreground: 210 40% 98%; /* High contrast text */
+    --destructive: 0 72% 51%; /* Brighter red for visibility */
+    --destructive-foreground: 210 40% 98%; /* High contrast text */
+    --border: 217.2 32.6% 25%; /* Lighter borders for visibility */
+    --input: 217.2 32.6% 20%; /* Lighter input backgrounds */
+    --ring: 217.2 91.2% 65%; /* Bright ring for focus visibility */
+    
+    /* Status colors - brighter for dark mode */
+    --status-todo: 156 163 175; /* gray-400 - lighter */
+    --status-in-progress: 96 165 250; /* blue-400 - brighter */
+    --status-blocked: 248 113 113; /* red-400 - brighter */
+    --status-done: 74 222 128; /* green-400 - brighter */
+    --status-discovery: 125 211 252; /* sky-400 - brighter */
+    --status-design: 251 191 36; /* amber-400 - brighter */
+    --status-development: 96 165 250; /* blue-400 - brighter */
+    --status-shipped: 74 222 128; /* green-400 - brighter */
+    --status-archived: 203 213 225; /* gray-300 - lighter */
+    
+    /* Priority colors - brighter for dark mode */
+    --priority-low: 74 222 128; /* green-400 - brighter */
+    --priority-medium: 251 191 36; /* amber-400 - brighter */
+    --priority-high: 251 146 60; /* amber-500 - brighter */
+    --priority-critical: 248 113 113; /* red-400 - brighter */
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+}
+
+* {
+  box-sizing: border-box;
+  padding: 0;
+  margin: 0;
+}
+
+html {
+  /* Smooth scrolling */
+  scroll-behavior: smooth;
+  /* Better font rendering */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+html,
+body {
+  max-width: 100vw;
+  overflow-x: hidden;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  line-height: 1.5;
+}
+
+/* Responsive typography */
+@media (max-width: 640px) {
+  html {
+    font-size: 14px;
+  }
+}
+
+@media (min-width: 641px) and (max-width: 1024px) {
+  html {
+    font-size: 15px;
+  }
+}
+
+@media (min-width: 1025px) {
+  html {
+    font-size: 16px;
+  }
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+.header {
+  background-color: hsl(var(--card));
+  border-bottom: 1px solid hsl(var(--border));
+  padding: 20px 0;
+  margin-bottom: 30px;
+}
+
+.header h1 {
+  font-size: 28px;
+  font-weight: 600;
+  color: hsl(var(--foreground));
+}
+
+.card {
+  background-color: hsl(var(--card));
+  color: hsl(var(--card-foreground));
+  border: 1px solid hsl(var(--border));
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 20px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.dark .card {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 20px;
+}
+
+.table th,
+.table td {
+  padding: 12px;
+  text-align: left;
+  border-bottom: 1px solid hsl(var(--border));
+}
+
+.table th {
+  background-color: hsl(var(--muted));
+  font-weight: 600;
+  color: hsl(var(--foreground));
+}
+
+.table tr:hover {
+  background-color: hsl(var(--accent));
+}
+
+.dark .table tr:hover {
+  background-color: hsl(var(--accent) / 0.3);
+}
+
+.badge {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.badge-primary {
+  background-color: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+}
+
+.badge-success {
+  background-color: hsl(142 76% 36%);
+  color: hsl(0 0% 100%);
+}
+
+.dark .badge-success {
+  background-color: hsl(142 70% 45%);
+  color: hsl(0 0% 100%);
+}
+
+.badge-warning {
+  background-color: hsl(45 93% 47%);
+  color: hsl(0 0% 0%);
+}
+
+.dark .badge-warning {
+  background-color: hsl(45 93% 55%);
+  color: hsl(0 0% 0%);
+}
+
+.amount {
+  font-weight: 600;
+  color: hsl(142 76% 36%);
+}
+
+.dark .amount {
+  color: hsl(142 70% 50%);
+}
+
+.loading {
+  text-align: center;
+  padding: 40px;
+  color: hsl(var(--muted-foreground));
+}
+
+.error {
+  background-color: hsl(var(--destructive) / 0.1);
+  color: hsl(var(--destructive));
+  border: 1px solid hsl(var(--destructive) / 0.3);
+  padding: 12px;
+  border-radius: 4px;
+  margin: 20px 0;
+}
+
+.dark .error {
+  background-color: hsl(var(--destructive) / 0.2);
+  border-color: hsl(var(--destructive) / 0.5);
+}
+
+/* Responsive utilities */
+@layer utilities {
+  /* Container utilities */
+  .container-responsive {
+    width: 100%;
+    margin-left: auto;
+    margin-right: auto;
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+  
+  @media (min-width: 640px) {
+    .container-responsive {
+      max-width: 640px;
+      padding-left: 1.5rem;
+      padding-right: 1.5rem;
+    }
+  }
+  
+  @media (min-width: 768px) {
+    .container-responsive {
+      max-width: 768px;
+      padding-left: 2rem;
+      padding-right: 2rem;
+    }
+  }
+  
+  @media (min-width: 1024px) {
+    .container-responsive {
+      max-width: 1024px;
+      padding-left: 2rem;
+      padding-right: 2rem;
+    }
+  }
+  
+  @media (min-width: 1280px) {
+    .container-responsive {
+      max-width: 1280px;
+      padding-left: 2.5rem;
+      padding-right: 2.5rem;
+    }
+  }
+  
+  /* Responsive text sizing */
+  .text-responsive {
+    font-size: clamp(0.875rem, 2.5vw, 1rem);
+  }
+  
+  .text-responsive-lg {
+    font-size: clamp(1rem, 3vw, 1.25rem);
+  }
+  
+  .text-responsive-xl {
+    font-size: clamp(1.25rem, 4vw, 1.5rem);
+  }
+  
+  .text-responsive-2xl {
+    font-size: clamp(1.5rem, 5vw, 2rem);
+  }
+  
+  /* Responsive spacing */
+  .spacing-responsive {
+    padding: clamp(1rem, 4vw, 1.5rem);
+  }
+  
+  .spacing-responsive-lg {
+    padding: clamp(1.5rem, 5vw, 2.5rem);
+  }
+  
+  /* Focus visible for accessibility */
+  .focus-visible-ring {
+    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2;
+  }
+  
+  /* Smooth transitions */
+  .transition-base {
+    transition-property: color, background-color, border-color, text-decoration-color, fill, stroke, opacity, box-shadow, transform, filter, backdrop-filter;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+    transition-duration: 200ms;
+  }
+  
+  /* Card hover effects */
+  .card-hover {
+    @apply transition-base hover:shadow-md;
+  }
+  
+  /* Button hover effects */
+  .button-hover {
+    @apply transition-base hover:opacity-90 active:scale-95;
+  }
+  
+  /* Scrollbar styling */
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: rgb(203 213 225) transparent;
+  }
+  
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background-color: rgb(203 213 225);
+    border-radius: 4px;
+  }
+  
+  .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    background-color: rgb(148 163 184);
+  }
+  
+  /* Dark mode scrollbar */
+  .dark .scrollbar-thin {
+    scrollbar-color: rgb(71 85 105) transparent;
+  }
+  
+  .dark .scrollbar-thin::-webkit-scrollbar-thumb {
+    background-color: rgb(71 85 105);
+  }
+  
+  .dark .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    background-color: rgb(100 116 139);
+  }
+  
+  /* Ensure buttons are visible in dark mode with high contrast */
+  .dark button[type="button"]:not([class*="bg-"]):not([class*="Button"]),
+  .dark button[type="submit"]:not([class*="bg-"]):not([class*="Button"]) {
+    border-color: hsl(var(--border));
+    background-color: hsl(var(--secondary));
+    color: hsl(var(--secondary-foreground));
+  }
+  
+  /* High contrast focus rings for accessibility */
+  .dark *:focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 2px;
+  }
+  
+  /* Ensure select elements are visible */
+  .dark select {
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
+    border-color: hsl(var(--border));
+  }
+  
+  .dark select option {
+    background-color: hsl(var(--card));
+    color: hsl(var(--card-foreground));
+  }
+}
+

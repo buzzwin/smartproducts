@@ -1,0 +1,309 @@
+DREAMS Architecture Roadmap
+Committed to performance, dedicated to stability
+Entered text
+
+Brand Development:
+
+Report on internal initiatives
+Activity/Logging framework
+Separate Blob Storage for Mobile App API/Secondary App:
+
+Implementation details
+Layered PDF Enhancement:
+
+Review and enhancement
+Rest-of-Business (RoB) Integration:
+
+Plan and implement
+Branch Retrieval Optimization:
+
+Optimize Application Server
+CI/CD (Continuous Integration/Continuous Deployment) improvements
+QA Automation:
+
+Develop and implement QA (Quality Assurance) automation strategies
+Archive/Historical Data Repository:
+
+Establish and maintain
+Standard API Development:
+
+Design and implement standardized APIs
+Migrate to .NET Core - Mobile App/API Re-architecture:
+
+Plan and execute migration
+Security enhancements
+Cloud Readiness:
+
+Code cloud readiness assessment
+DB (Database) cloud readiness
+Infrastructure virtualization
+Cloud virtualization strategies
+
+Entered text
+
+Performance Optimization:
+
+Slide Title: "Performance Optimization Strategy"
+Overview of current performance issues
+Proposed optimization techniques (e.g., code refactoring, caching strategies)
+Expected outcomes and benefits
+Timeline for implementation
+Mobile App Improvements:
+
+Slide Title: "Mobile App Enhancements"
+Key areas of improvement (user interface, functionality, etc.)
+Plan for implementing new features or updates
+Impact on user experience
+Timeline and milestones for app updates
+Database Optimization and Scalability:
+
+Slide Title: "Database Optimization and Scalability"
+Current database challenges (performance, capacity, etc.)
+Strategies for database optimization (indexing, normalization, etc.)
+Scalability plan (cloud migration, database sharding, etc.)
+Expected improvements in terms of performance and scalability
+Implementation timeline
+Server Scalability:
+
+Slide Title: "Server Scalability Enhancements"
+Overview of current server infrastructure and limitations
+Scalability solutions (load balancing, auto-scaling, cloud services)
+Expected benefits in terms of load handling and uptime
+Integration with overall application architecture
+Timeline for scalability enhancements
+
+Our Journey Towards Improvement
+Focus Areas
+
+Performance
+Reliability
+Scalability
+UI/UX and Usability
+Quality
+Security
+
+Phase 1: Core refactoring, API standardization, DB separation, Mobile stability
+Phase 2: Flutter app foundation, CI/CD, logging, reporting, QA automation
+Phase 3: .NET 9 migration, UI upgrade, security hardening, containerization
+Phase 4: Cloud readiness, continuous monitoring, ML-based verification
+Phase 5: Scalability, formal verification, ongoing performance and security drills
+
+Existing security features
+Parameterized queries and ORM use across DB layer
+SSL enforced for all endpoints and inter-service calls
+IP locks for all endpoints.
+Threat modeling sessions and STRIDE mapping
+Layered security review — WAF, network segmentation
+Centralized logging and audit logging framework
+Ongoing / In Progress
+• Threat modeling sessions and STRIDE (Spoofing, Tampering, Repudiation, Information Disclosure, Denial of Service, 
+and Elevation of Privilege) mapping
+• CI/CD and Static Code Analyis integration
+Complex / Future Considerations
+Periodic pen testing & incident response drills 
+Automated code scanning via AI/ML verification pipelines
+Field-level encryption for sensitive data (PII)
+Mobile certificate pinning
+Ongoing
+Security Considerations
+
+Branch Refactoring (Initial)
+Standardization of APIs
+Cloud Virtualization (Pilot Environments)
+Dev Version Upgrades → .NET 7
+Database Separation
+Advanced Server Configurations
+Mobile App API Refactoring (Initial)
+Mobile App Stability – Crash and Performance
+Parameterized Queries, SSL, 
+
+Phase 1
+Cloud (Blob Storage) Document Storage
+CI/CD Enhancements
+App Server Separation / Load Balancing
+Reporting Infrastructure
+Activity Logging Framework
+QA Automation Setup
+Flutter App Development – Cross-platform foundation for mobile stability and unified API integration
+STRIDE, WAF, Audit Logging
+Active and History Table Separation for Query 
+
+Phase 2
+
+Database Optimizations and Scalability
+Refactor Code Logic and Migrate to .NET 9
+Refactor & Upgrade UI for Usability and Performance
+Iron PDF Migration
+Security Enhancements (Static Code Analysis in Pipelines and Hardening) 
+QA Automation
+Containerization for all App Servers
+
+Phase 3
+Mobile App API Optimizations and Refactor for Performance
+Performance
+Security Enhancements – Continuous Monitoring and Drills
+Code Cloud Ready & DB Cloud Ready
+Formal Verification, ML Code Scans and Detection
+
+Phase 4
+
+Database Optimizations and Scalability
+Refactor Code Logic and Migrate to .NET 9
+Refactor & Upgrade UI for Usability and Performance
+Iron PDF Migration
+Security Enhancements (Static Code Analysis in Pipelines and Hardening) 
+
+Phase 5
+
+Enhanced Productivity - Streamlined workflows, smarter coding assistants, and improved debugging tools.
+Modern Language Features - Leverage C# 11 and .NET 7 for cleaner code, better performance, and advanced capabilities.
+Improved Security - Remove any vulnerabilities with patched libraries and secure coding practices.
+Version Upgrades
+Phase 1
+
+Scale your database independently to meet your unique growth demands.
+Boost Performance: Eliminate resource contention and enjoy predictable, blazing-fast performance.
+Implement robust security measures tailored to your specific needs.
+Enjoy full control over configuration, and backups.
+Could provide security benefits
+Database separation
+Phase 1
+
+Independently scale app server and database for optimal resource allocation.
+Mitigate security risks by isolating sensitive database access.
+Boosted Performance -  Reduce contention and latency for a more responsive user experience.
+Manage infrastructure components independently for better maintainability.
+Isolate any impact from activity created by other companies 
+App Server separation
+Phase 1
+
+Faster loading times and smoother user interactions.
+Accommodate growing user bases and data volumes.
+Focus on core app logic without performance bottlenecks.
+Convert code from Objective C to Swift
+Remove bottlenecks and dead code
+Implement advanced logging and monitoring through best of breed tools for crash analytics, session tracing and exception handling
+Ability to receive user feedback,
+Mobile App API improvements and Crash and Stability
+Phase 1
+
+Retrieve documents from any device with internet access.
+Share and work on files simultaneously with ease.
+Benefit from advanced encryption and data protection measures.
+Accommodate growing document volumes without infrastructure constraints.
+Disaster Recovery - Safeguard against data loss with reliable backups.
+Cloud Document Storage
+Phase 2
+
+CI/CD improvements
+Continuous Integration/Continuous Deployment enhancements
+Automating build, test, and deployment processes
+Increasing efficiency and reliability
+Accelerating software delivery
+Phase 2
+
+Advanced Load Balancing
+Configure settings like queue length and recycling based on workload for load handling and uptime
+Improve Server Logging and traceability
+Advanced Server Configurations and Load Balancing
+Timeline for scalability enhancements
+Phase 2
+
+Handles growing data volumes seamlessly
+Empowers users with self-service capabilities
+Reduces time to insights with automation
+Flexible and adaptable to your needs
+Reporting Infrastructure
+Phase 2
+
+Centralized data collection: Streamline activity tracking across your systems.
+Rich data capture: Record events, user actions, and system changes in detail.
+Flexible analysis: Slice and dice data to uncover trends and patterns.
+Enhanced compliance: Meet security and auditing requirements effortlessly.
+Activity/Logging Framework
+Phase 2
+
+Developing and implementing QA automation strategies
+Automating testing processes
+Improving software quality
+Reducing manual effort
+QA Automation
+Phase 2
+
+Current database challenges (performance, capacity, etc.)
+Strategies for database optimization (indexing, normalization, etc.)
+Scalability plan (cloud migration, database sharding, etc.)
+Expected improvements in terms of performance and scalability
+Implementation timeline
+Advanced Database Optimization and Scalability
+Phase 3
+
+Code Optimization for key flows
+Data Caching
+Application Server Configurations, Load balancing and horizontal scaling
+Modernize with .NET core 
+Index Optimization and Query Performance  Tuning
+Separate database per company
+Database History archival
+Optimizing data model complexity for faster data loading
+Smooth UI interactions with large data sets
+Implementing detailed logging for traceability and troubleshooting
+Database
+Mobile
+Core Technical Improvements
+Web
+Various
+Other
+Iron PDF migration
+Cloud Readiness assessmentS
+Security Enhancements
+
+Optimize Performance & Scalability by Offloading Aged Data
+Reduce query times and boost overall system responsiveness.
+Accommodate growing data volumes without performance bottlenecks.
+Maintain older data accessibility for regulatory requirements.
+Active and History Table Separation 
+Phase 4
+
+Assessment and Planning
+Analyze 
+
+Identify cloud-compatible components and potential refactoring needs.
+
+Evaluate cloud provider options and services 
+.
+Address security and compliance requirements.
+Application Refactoring (if needed)
+Modernize code for cloud compatibility.
+
+Modularize components for independent scaling and deployment.
+
+Leverage cloud-native services and patterns (e.g., microservices, serverless functions).
+
+Adopt containerization for portability (Docker, Kubernetes).
+Database 
+Read replicas for performance
+
+High Availability and Disaster Recovery Setups
+
+Address data security and compliance requirements
+
+Reporting Database optimizations
+
+NOSQL database usage
+Deployment 
+Multiple release intra day
+
+Canary and blue green deployments
+
+Automated testing n deployment pipelines
+
+Feature Flags
+
+Preview functionality
+
+Dependency management and upgrades
+Cloud Readiness
+
+Thank you. Please feel free to ask any questions. 😄
+
