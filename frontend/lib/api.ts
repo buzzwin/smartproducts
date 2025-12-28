@@ -538,7 +538,6 @@ export const metricsAPI = {
         };
       }>;
     }>(`/api/metrics/summary/counts?product_id=${productId}${query}`);
-    return fetchAPI<import('../types').Metric[]>(`/api/metrics/product/${productId}${query}`);
   },
   getAnalytics: (productId?: string) => {
     const query = productId ? `?product_id=${productId}` : '';
