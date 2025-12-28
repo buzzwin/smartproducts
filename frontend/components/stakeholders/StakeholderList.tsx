@@ -125,6 +125,7 @@ export default function StakeholderList({ productId, moduleId, onUpdate }: Stake
               </CardHeader>
               <CardContent>
                 <div className="space-y-2">
+                  {stakeholder.company_name && <p className="text-sm"><strong>Company:</strong> {stakeholder.company_name}</p>}
                   {stakeholder.role && <p className="text-sm"><strong>Role:</strong> {stakeholder.role}</p>}
                   {stakeholder.influence_level && (
                     <div>

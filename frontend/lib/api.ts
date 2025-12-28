@@ -504,6 +504,42 @@ export const metricsAPI = {
     const query = moduleId ? `?module_id=${moduleId}` : '';
     return fetchAPI<import('../types').Metric[]>(`/api/metrics/product/${productId}${query}`);
   },
+  getSummaryCounts: (productId: string, moduleId?: string) => {
+    const query = moduleId ? `&module_id=${moduleId}` : '';
+    return fetchAPI<{
+      scope: 'product' | 'module';
+      product_id: string;
+      module_id?: string;
+      module_name?: string;
+      counts: {
+        problems: number;
+        features: number;
+        tasks: number;
+      };
+      task_status: {
+        todo: number;
+        in_progress: number;
+        blocked: number;
+        done: number;
+      };
+      modules?: Array<{
+        module_id: string;
+        module_name: string;
+        counts: {
+          problems: number;
+          features: number;
+          tasks: number;
+        };
+        task_status: {
+          todo: number;
+          in_progress: number;
+          blocked: number;
+          done: number;
+        };
+      }>;
+    }>(`/api/metrics/summary/counts?product_id=${productId}${query}`);
+    return fetchAPI<import('../types').Metric[]>(`/api/metrics/product/${productId}${query}`);
+  },
   getAnalytics: (productId?: string) => {
     const query = productId ? `?product_id=${productId}` : '';
     return fetchAPI<{ total_metrics: number; outcome_metrics: number; output_metrics: number; health_metrics: number; on_track: number; metrics: any[] }>(

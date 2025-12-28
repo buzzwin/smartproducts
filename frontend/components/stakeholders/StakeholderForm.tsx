@@ -25,12 +25,13 @@ interface StakeholderFormProps {
 export default function StakeholderForm({ stakeholder, productId, moduleId, onSuccess, onCancel }: StakeholderFormProps) {
   const [name, setName] = useState(stakeholder?.name || '');
   const [email, setEmail] = useState(stakeholder?.email || '');
+  const [companyName, setCompanyName] = useState(stakeholder?.company_name || '');
   const [role, setRole] = useState(stakeholder?.role || '');
-  const [influenceLevel, setInfluenceLevel] = useState<string>(stakeholder?.influence_level || 'medium');
+  const [influenceLevel, setInfluenceLevel] = useState<string>(stakeholder?.influence_level || 'none');
   const [interests, setInterests] = useState<string[]>(stakeholder?.interests || []);
   const [interestInput, setInterestInput] = useState('');
   const [communicationPreferences, setCommunicationPreferences] = useState(stakeholder?.communication_preferences || '');
-  const [updateFrequency, setUpdateFrequency] = useState<string>(stakeholder?.update_frequency || '');
+  const [updateFrequency, setUpdateFrequency] = useState<string>(stakeholder?.update_frequency || 'none');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -57,11 +58,12 @@ export default function StakeholderForm({ stakeholder, productId, moduleId, onSu
         module_id: moduleId || undefined,
         name,
         email,
+        company_name: companyName || undefined,
         role: role || undefined,
-        influence_level: influenceLevel as 'low' | 'medium' | 'high' | 'critical',
+        influence_level: influenceLevel && influenceLevel !== 'none' ? influenceLevel : undefined,
         interests: interests.length > 0 ? interests : undefined,
         communication_preferences: communicationPreferences || undefined,
-        update_frequency: updateFrequency || undefined,
+        update_frequency: updateFrequency && updateFrequency !== 'none' ? updateFrequency : undefined,
       };
 
       if (stakeholder) {
@@ -129,6 +131,17 @@ export default function StakeholderForm({ stakeholder, productId, moduleId, onSu
         />
       </div>
 
+      <div style={{ marginBottom: '16px' }}>
+        <Label htmlFor="company_name">Company Name</Label>
+        <Input
+          id="company_name"
+          value={companyName}
+          onChange={(e) => setCompanyName(e.target.value)}
+          placeholder="e.g., Acme Corp, Tech Solutions Inc"
+          className="mt-1"
+        />
+      </div>
+
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '16px' }}>
         <div>
           <Label htmlFor="role">Role</Label>
@@ -142,20 +155,20 @@ export default function StakeholderForm({ stakeholder, productId, moduleId, onSu
         </div>
 
         <div>
-          <Label htmlFor="influence_level">Influence Level *</Label>
+          <Label htmlFor="influence_level">Influence Level</Label>
           <Select
             value={influenceLevel}
             onValueChange={(value) => setInfluenceLevel(value)}
-            required
           >
             <SelectTrigger id="influence_level" className="mt-1">
               <SelectValue placeholder="Select influence level" />
             </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="low">Low</SelectItem>
-              <SelectItem value="medium">Medium</SelectItem>
-              <SelectItem value="high">High</SelectItem>
-              <SelectItem value="critical">Critical</SelectItem>
+            <SelectContent className="z-[10000]">
+              <SelectItem value="none">Not specified</SelectItem>
+              <SelectItem value="low">Low - Limited influence on decisions</SelectItem>
+              <SelectItem value="medium">Medium - Moderate influence on decisions</SelectItem>
+              <SelectItem value="high">High - Significant influence on decisions</SelectItem>
+              <SelectItem value="critical">Critical - Key decision maker</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -163,18 +176,21 @@ export default function StakeholderForm({ stakeholder, productId, moduleId, onSu
         <div>
           <Label htmlFor="update_frequency">Update Frequency</Label>
           <Select
-            value={updateFrequency || undefined}
-            onValueChange={(value) => setUpdateFrequency(value === "none" ? "" : value)}
+            value={updateFrequency}
+            onValueChange={(value) => setUpdateFrequency(value)}
           >
             <SelectTrigger id="update_frequency" className="mt-1">
               <SelectValue placeholder="Select frequency" />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent className="z-[10000]">
               <SelectItem value="none">Not specified</SelectItem>
-              <SelectItem value="daily">Daily</SelectItem>
-              <SelectItem value="weekly">Weekly</SelectItem>
-              <SelectItem value="monthly">Monthly</SelectItem>
-              <SelectItem value="quarterly">Quarterly</SelectItem>
+              <SelectItem value="daily">Daily - Every day</SelectItem>
+              <SelectItem value="weekly">Weekly - Once per week</SelectItem>
+              <SelectItem value="biweekly">Biweekly - Every two weeks</SelectItem>
+              <SelectItem value="monthly">Monthly - Once per month</SelectItem>
+              <SelectItem value="quarterly">Quarterly - Once per quarter</SelectItem>
+              <SelectItem value="on_release">On Release - When releases are published</SelectItem>
+              <SelectItem value="as_needed">As Needed - On-demand updates</SelectItem>
             </SelectContent>
           </Select>
         </div>

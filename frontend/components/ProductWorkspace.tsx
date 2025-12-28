@@ -19,6 +19,7 @@ import ExecutionView from './execution/ExecutionView';
 import StakeholderList from './stakeholders/StakeholderList';
 import ModuleForm from './modules/ModuleForm';
 import CostView from './economics/CostView';
+import MetricsView from './metrics/MetricsView';
 import Modal from './Modal';
 import ProductForm from './ProductForm';
 import Link from 'next/link';
@@ -730,26 +731,10 @@ export default function ProductWorkspace({ onUpdate }: ProductWorkspaceProps) {
                 <StakeholderList productId={selectedProductId} moduleId={selectedModuleId || undefined} />
               )}
               {activeStep === 'metrics' && selectedProductId && (
-                <div>
-                  <Link href={`/products/${selectedProductId}/metrics`}>
-                    <Button>View Full Metrics Dashboard →</Button>
-                  </Link>
-                  <div className="mt-6 grid gap-4 md:grid-cols-3">
-                    {metrics.map(metric => (
-                      <Card key={metric.id}>
-                        <CardHeader>
-                          <CardTitle className="text-lg">{metric.name}</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                          <div className="text-2xl font-bold">
-                            {metric.current_value !== null ? metric.current_value : 'N/A'} / {metric.target_value}
-                          </div>
-                          <p className="text-sm text-muted-foreground mt-1">{metric.unit}</p>
-                        </CardContent>
-                      </Card>
-                    ))}
-                  </div>
-                </div>
+                <MetricsView 
+                  productId={selectedProductId} 
+                  moduleId={selectedModuleId || undefined}
+                />
               )}
               {activeStep === 'cost' && selectedProductId && (
                 <CostView 

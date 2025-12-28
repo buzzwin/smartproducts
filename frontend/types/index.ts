@@ -258,6 +258,7 @@ export interface Stakeholder {
   module_id?: string;  // Optional - can be module-specific or product-level
   name: string;
   email: string;
+  company_name?: string;
   role?: string;
   influence_level?: string;
   interests?: string[];
