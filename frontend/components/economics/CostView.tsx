@@ -36,8 +36,10 @@ import {
   AlertCircle,
   Edit,
   Trash2,
+  Cloud,
 } from "lucide-react";
 import CostForm from "./CostForm";
+import { CloudCostSyncModal } from "./CloudCostSyncModal";
 import {
   LineChart,
   Line,
@@ -75,6 +77,7 @@ export default function CostView({ productId, moduleId }: CostViewProps) {
   );
   const [showCostForm, setShowCostForm] = useState(false);
   const [editingCost, setEditingCost] = useState<Cost | null>(null);
+  const [showCloudSyncModal, setShowCloudSyncModal] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -554,6 +557,13 @@ export default function CostView({ productId, moduleId }: CostViewProps) {
             )}
 
             <div className="flex-1"></div>
+            <Button
+              variant="outline"
+              onClick={() => setShowCloudSyncModal(true)}
+            >
+              <Cloud className="h-4 w-4 mr-2" />
+              Sync Cloud Costs
+            </Button>
             <Button
               onClick={() => {
                 setEditingCost(null);
@@ -1060,6 +1070,18 @@ export default function CostView({ productId, moduleId }: CostViewProps) {
           </div>
         </div>
       )}
+
+      {/* Cloud Cost Sync Modal */}
+      <CloudCostSyncModal
+        productId={productId}
+        moduleId={moduleId}
+        open={showCloudSyncModal}
+        onClose={() => setShowCloudSyncModal(false)}
+        onSuccess={() => {
+          setShowCloudSyncModal(false);
+          loadData();
+        }}
+      />
     </div>
   );
 }

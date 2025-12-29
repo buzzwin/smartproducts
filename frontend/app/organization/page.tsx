@@ -2,6 +2,7 @@
 
 import { OrganizationProfile } from '@clerk/nextjs';
 import { OrganizationManagement } from '@/components/OrganizationManagement';
+import { CloudConfigurations } from '@/components/settings/CloudConfigurations';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
@@ -9,7 +10,7 @@ import Link from 'next/link';
 import { useState } from 'react';
 
 export default function OrganizationPage() {
-  const [view, setView] = useState<'management' | 'settings'>('management');
+  const [view, setView] = useState<'management' | 'settings' | 'cloud-configs'>('management');
 
   return (
     <div className="container py-8">
@@ -39,10 +40,18 @@ export default function OrganizationPage() {
         >
           Full Settings
         </Button>
+        <Button
+          variant={view === 'cloud-configs' ? 'default' : 'outline'}
+          onClick={() => setView('cloud-configs')}
+        >
+          Cloud Configurations
+        </Button>
       </div>
 
       {view === 'management' ? (
         <OrganizationManagement />
+      ) : view === 'cloud-configs' ? (
+        <CloudConfigurations />
       ) : (
         <Card>
           <CardHeader>

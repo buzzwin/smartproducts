@@ -960,3 +960,119 @@ export const modulesAPI = {
     fetchAPI<void>(`/api/modules/${id}`, { method: 'DELETE' }),
 };
 
+// Cloud Configs API
+export const cloudConfigsAPI = {
+  getAll: (organizationId: string, provider?: string) => {
+    const query = new URLSearchParams();
+    query.append('organization_id', organizationId);
+    if (provider) query.append('provider', provider);
+    return fetchAPI<import('../types').CloudConfig[]>(
+      `/api/cloud-configs?${query.toString()}`
+    );
+  },
+  getById: (configId: string, organizationId: string) =>
+    fetchAPI<import('../types').CloudConfig>(
+      `/api/cloud-configs/${configId}?organization_id=${organizationId}`
+    ),
+  create: (organizationId: string, config: any) =>
+    fetchAPI<import('../types').CloudConfig>(
+      `/api/cloud-configs?organization_id=${organizationId}`,
+      {
+        method: 'POST',
+        body: JSON.stringify(config),
+      }
+    ),
+  update: (configId: string, organizationId: string, config: Partial<import('../types').CloudConfig>) =>
+    fetchAPI<import('../types').CloudConfig>(
+      `/api/cloud-configs/${configId}?organization_id=${organizationId}`,
+      {
+        method: 'PUT',
+        body: JSON.stringify(config),
+      }
+    ),
+  delete: (configId: string, organizationId: string) =>
+    fetchAPI<void>(
+      `/api/cloud-configs/${configId}?organization_id=${organizationId}`,
+      { method: 'DELETE' }
+    ),
+  test: (configId: string, organizationId: string) =>
+    fetchAPI<{ status: string; message: string }>(
+      `/api/cloud-configs/${configId}/test?organization_id=${organizationId}`,
+      { method: 'POST' }
+    ),
+  activate: (configId: string, organizationId: string) =>
+    fetchAPI<import('../types').CloudConfig>(
+      `/api/cloud-configs/${configId}/activate?organization_id=${organizationId}`,
+      { method: 'POST' }
+    ),
+  deactivate: (configId: string, organizationId: string) =>
+    fetchAPI<import('../types').CloudConfig>(
+      `/api/cloud-configs/${configId}/deactivate?organization_id=${organizationId}`,
+      { method: 'POST' }
+    ),
+};
+
+// AWS Costs API
+export const awsCostsAPI = {
+  sync: (
+    organizationId: string,
+    productId: string,
+    configId: string,
+    options?: {
+      moduleId?: string;
+      startDate?: string;
+      endDate?: string;
+    }
+  ) => {
+    const body: any = {
+      product_id: productId,
+      config_id: configId,
+      dry_run: false,
+    };
+    if (options?.moduleId) body.module_id = options.moduleId;
+    if (options?.startDate) body.start_date = options.startDate;
+    if (options?.endDate) body.end_date = options.endDate;
+    
+    return fetchAPI<{
+      created_count: number;
+      updated_count: number;
+      skipped_count: number;
+      costs: import('../types').Cost[];
+      errors: string[];
+    }>(
+      `/api/aws-costs/sync?organization_id=${organizationId}`,
+      {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }
+    );
+  },
+  preview: (
+    organizationId: string,
+    productId: string,
+    configId: string,
+    options?: {
+      moduleId?: string;
+      startDate?: string;
+      endDate?: string;
+    }
+  ) => {
+    const query = new URLSearchParams();
+    query.append('organization_id', organizationId);
+    query.append('product_id', productId);
+    query.append('config_id', configId);
+    if (options?.moduleId) query.append('module_id', options.moduleId);
+    if (options?.startDate) query.append('start_date', options.startDate);
+    if (options?.endDate) query.append('end_date', options.endDate);
+    
+    // Preview endpoint returns AWSCostSyncResponse (same as sync, but with dry_run=True)
+    return fetchAPI<{
+      created_count: number;
+      updated_count: number;
+      skipped_count: number;
+      costs: import('../types').Cost[];
+      errors: string[];
+    }>(`/api/aws-costs/preview?${query.toString()}`);
+  },
+};
+

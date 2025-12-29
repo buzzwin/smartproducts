@@ -379,6 +379,32 @@ export type CostType = 'labor' | 'infra' | 'license' | 'vendor' | 'other';
 export type CostRecurrence = 'one-time' | 'monthly' | 'quarterly' | 'annual';
 export type CostClassification = 'run' | 'change';  // 'run' = Run/KTLO, 'change' = Change/Growth
 
+export type CloudProvider = 'aws' | 'azure' | 'gcp';
+
+export interface CloudConfig {
+  id: string;
+  organization_id: string;
+  provider: CloudProvider;
+  name: string;
+  is_active: boolean;
+  region?: string;
+  account_id?: string;
+  last_synced_at?: string;
+  last_sync_status?: 'success' | 'error' | 'pending';
+  last_sync_error?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface AWSCloudConfigCreate {
+  name: string;
+  access_key_id: string;
+  secret_access_key: string;
+  region: string;
+  account_id?: string;
+  is_active?: boolean;
+}
+
 export interface Cost {
   id: string;
   product_id: string;
