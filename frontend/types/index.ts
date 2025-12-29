@@ -120,10 +120,9 @@ export interface Task {
   status: TaskStatus;
   priority: TaskPriority;
   assignee_ids: string[];
-  depends_on_task_ids?: string[]; // Legacy, use dependencies
-  dependencies?: string[]; // New field
-  effort?: string;
-  estimated_hours?: number;
+    depends_on_task_ids?: string[]; // Legacy, use dependencies
+    dependencies?: string[]; // New field
+    estimated_hours?: number;
   actual_hours?: number;
   blockers?: string[];
   due_date?: string;
@@ -374,7 +373,7 @@ export interface Roadmap {
   updated_at?: string;
 }
 
-export type CostScope = 'task' | 'module' | 'product' | 'shared';
+export type CostScope = 'product' | 'module' | 'feature' | 'resource' | 'hardware' | 'software' | 'database' | 'consulting';
 export type CostCategory = 'build' | 'run' | 'maintain' | 'scale' | 'overhead';
 export type CostType = 'labor' | 'infra' | 'license' | 'vendor' | 'other';
 export type CostRecurrence = 'one-time' | 'monthly' | 'quarterly' | 'annual';
@@ -482,8 +481,6 @@ export interface Module {
   owner_id?: string;
   is_default: boolean;
   status?: ModuleStatus;
-  enabled_steps: string[];
-  step_order: string[];
   layout_config?: Record<string, any>;
   settings?: Record<string, any>;
   cost_classification?: CostClassification;  // 'run' (Run/KTLO) or 'change' (Change/Growth)

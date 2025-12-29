@@ -1,9 +1,18 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import type { Task } from '@/types';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import type { Task, Module, Resource } from '@/types';
+import { modulesAPI, resourcesAPI } from '@/lib/api';
 import TaskList from '../TaskList';
 import ProgressTracking from './ProgressTracking';
 import TaskTimelineView from './TaskTimelineView';
@@ -20,18 +29,73 @@ type ViewMode = 'list' | 'chart' | 'timeline';
 
 export default function ExecutionView({ productId, moduleId, tasks, onUpdate }: ExecutionViewProps) {
   const [viewMode, setViewMode] = useState<ViewMode>('list');
+  const [filterModuleId, setFilterModuleId] = useState<string>(moduleId || 'all');
+  const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [filterAssigneeId, setFilterAssigneeId] = useState<string>('all');
+  const [modules, setModules] = useState<Module[]>([]);
+  const [resources, setResources] = useState<Resource[]>([]);
+  const [loadingFilters, setLoadingFilters] = useState(true);
 
-  // Calculate task summary metrics
-  const totalTasks = tasks.length;
-  const inProgressTasks = tasks.filter(t => t.status === 'in_progress').length;
-  const completedTasks = tasks.filter(t => t.status === 'done').length;
-  const todoTasks = tasks.filter(t => t.status === 'todo').length;
-  const blockedTasks = tasks.filter(t => t.status === 'blocked').length;
+  // Load modules and resources for filters
+  useEffect(() => {
+    const loadFilters = async () => {
+      try {
+        setLoadingFilters(true);
+        const [modulesData, resourcesData] = await Promise.all([
+          modulesAPI.getByProduct(productId).catch(() => []),
+          resourcesAPI.getAll().catch(() => [])
+        ]);
+        setModules(modulesData);
+        setResources(resourcesData);
+      } catch (err) {
+        console.error('Failed to load filter data:', err);
+      } finally {
+        setLoadingFilters(false);
+      }
+    };
+    loadFilters();
+  }, [productId]);
 
-  // Calculate hours metrics
-  const totalEstimatedHours = tasks.reduce((sum, t) => sum + (t.estimated_hours || 0), 0);
-  const totalActualHours = tasks.reduce((sum, t) => sum + (t.actual_hours || 0), 0);
-  const remainingHours = totalEstimatedHours - totalActualHours;
+  // Update filterModuleId when moduleId prop changes
+  useEffect(() => {
+    if (moduleId && filterModuleId === 'all') {
+      setFilterModuleId(moduleId);
+    }
+  }, [moduleId, filterModuleId]);
+
+  // Filter tasks based on filter state
+  const filteredTasks = useMemo(() => {
+    let filtered = [...tasks];
+
+    // Filter by module
+    if (filterModuleId && filterModuleId !== 'all') {
+      filtered = filtered.filter(t => t.module_id === filterModuleId);
+    }
+
+    // Filter by status
+    if (filterStatus && filterStatus !== 'all') {
+      filtered = filtered.filter(t => t.status === filterStatus);
+    }
+
+    // Filter by assignee
+    if (filterAssigneeId && filterAssigneeId !== 'all') {
+      filtered = filtered.filter(t => 
+        t.assignee_ids && t.assignee_ids.includes(filterAssigneeId)
+      );
+    }
+
+    return filtered;
+  }, [tasks, filterModuleId, filterStatus, filterAssigneeId]);
+
+  // Calculate task summary metrics from filtered tasks
+  const totalTasks = filteredTasks.length;
+  const inProgressTasks = filteredTasks.filter(t => t.status === 'in_progress').length;
+  const completedTasks = filteredTasks.filter(t => t.status === 'done').length;
+  const todoTasks = filteredTasks.filter(t => t.status === 'todo').length;
+  const blockedTasks = filteredTasks.filter(t => t.status === 'blocked').length;
+
+  // Calculate hours metrics from filtered tasks
+  const totalEstimatedHours = filteredTasks.reduce((sum, t) => sum + (t.estimated_hours || 0), 0);
 
   return (
     <div className="space-y-6">
@@ -79,34 +143,72 @@ export default function ExecutionView({ productId, moduleId, tasks, onUpdate }: 
         )}
       </div>
 
-      {/* Hours Summary (if applicable) */}
-      {totalEstimatedHours > 0 && (
-        <Card className="bg-card text-card-foreground border border-border">
-          <CardHeader>
-            <CardTitle>Hours Summary</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid gap-4 md:grid-cols-3">
-              <div>
-                <div className="text-lg font-semibold">{totalEstimatedHours.toFixed(1)}h</div>
-                <div className="text-sm text-muted-foreground">Total Estimated</div>
-              </div>
-              <div>
-                <div className="text-lg font-semibold text-green-600 dark:text-green-400">
-                  {totalActualHours.toFixed(1)}h
-                </div>
-                <div className="text-sm text-muted-foreground">Actual Hours</div>
-              </div>
-              <div>
-                <div className="text-lg font-semibold text-orange-600 dark:text-orange-400">
-                  {remainingHours > 0 ? remainingHours.toFixed(1) : '0'}h
-                </div>
-                <div className="text-sm text-muted-foreground">Remaining</div>
-              </div>
+      {/* Filters */}
+      <Card className="bg-card text-card-foreground border border-border">
+        <CardHeader>
+          <CardTitle>Filters</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <Label htmlFor="filter-module">Filter by Module</Label>
+              <Select
+                value={filterModuleId}
+                onValueChange={(value) => setFilterModuleId(value)}
+              >
+                <SelectTrigger id="filter-module" className="mt-1">
+                  <SelectValue placeholder="All Modules" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Modules</SelectItem>
+                  {modules.map((module) => (
+                    <SelectItem key={module.id} value={module.id}>
+                      {module.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-          </CardContent>
-        </Card>
-      )}
+            <div>
+              <Label htmlFor="filter-status">Filter by Status</Label>
+              <Select
+                value={filterStatus}
+                onValueChange={(value) => setFilterStatus(value)}
+              >
+                <SelectTrigger id="filter-status" className="mt-1">
+                  <SelectValue placeholder="All Statuses" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Statuses</SelectItem>
+                  <SelectItem value="todo">To Do</SelectItem>
+                  <SelectItem value="in_progress">In Progress</SelectItem>
+                  <SelectItem value="blocked">Blocked</SelectItem>
+                  <SelectItem value="done">Done</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label htmlFor="filter-assignee">Filter by Assignee</Label>
+              <Select
+                value={filterAssigneeId}
+                onValueChange={(value) => setFilterAssigneeId(value)}
+              >
+                <SelectTrigger id="filter-assignee" className="mt-1">
+                  <SelectValue placeholder="All Assignees" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Assignees</SelectItem>
+                  {resources.map((resource) => (
+                    <SelectItem key={resource.id} value={resource.id}>
+                      {resource.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* View Tabs */}
       <Card className="bg-card text-card-foreground border border-border">
@@ -130,7 +232,11 @@ export default function ExecutionView({ productId, moduleId, tasks, onUpdate }: 
             <TabsContent value="list" className="mt-6">
               <TaskList 
                 productId={productId} 
-                moduleId={moduleId} 
+                moduleId={filterModuleId !== 'all' ? filterModuleId : moduleId}
+                initialFilterModuleId={filterModuleId !== 'all' ? filterModuleId : ''}
+                initialFilterStatus={filterStatus !== 'all' ? filterStatus : ''}
+                initialFilterAssigneeId={filterAssigneeId !== 'all' ? filterAssigneeId : ''}
+                hideFilters={true}
                 onUpdate={onUpdate} 
               />
             </TabsContent>
@@ -138,15 +244,16 @@ export default function ExecutionView({ productId, moduleId, tasks, onUpdate }: 
             <TabsContent value="chart" className="mt-6">
               <ProgressTracking 
                 productId={productId} 
-                moduleId={moduleId} 
+                moduleId={filterModuleId !== 'all' ? filterModuleId : moduleId}
+                tasks={filteredTasks}
               />
             </TabsContent>
 
             <TabsContent value="timeline" className="mt-6">
               <TaskTimelineView 
                 productId={productId} 
-                moduleId={moduleId} 
-                tasks={tasks}
+                moduleId={filterModuleId !== 'all' ? filterModuleId : moduleId} 
+                tasks={filteredTasks}
                 onUpdate={onUpdate}
               />
             </TabsContent>

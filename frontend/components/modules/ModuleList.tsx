@@ -1,27 +1,67 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import { modulesAPI } from '@/lib/api';
-import type { Module, Product } from '@/types';
-import ModuleForm from './ModuleForm';
-import Modal from '../Modal';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Edit, Trash2, Plus, Star } from 'lucide-react';
+import { useState, useEffect } from "react";
+import { modulesAPI, productsAPI } from "@/lib/api";
+import type { Module, Product } from "@/types";
+import ModuleForm from "./ModuleForm";
+import Modal from "../Modal";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Edit, Trash2, Plus, Star } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
 
 interface ModuleListProps {
   productId?: string;
   onUpdate?: () => void;
 }
 
-export default function ModuleList({ productId, onUpdate }: ModuleListProps) {
+export default function ModuleList({
+  productId: propProductId,
+  onUpdate,
+}: ModuleListProps) {
   const [modules, setModules] = useState<Module[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [editingModule, setEditingModule] = useState<Module | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [selectedProductId, setSelectedProductId] = useState<string>(
+    propProductId || ""
+  );
+
+  // Use propProductId if provided, otherwise use selectedProductId
+  const productId = propProductId || selectedProductId;
+
+  // Load products if no productId is provided
+  useEffect(() => {
+    if (!propProductId) {
+      const loadProducts = async () => {
+        try {
+          const data = await productsAPI.getAll();
+          setProducts(data);
+          // Auto-select the first product if none is selected
+          if (data.length > 0) {
+            setSelectedProductId((current) => {
+              // Only set if not already set
+              return current || data[0].id;
+            });
+          }
+        } catch (err) {
+          console.error("Failed to load products:", err);
+        }
+      };
+      loadProducts();
+    }
+  }, [propProductId]);
 
   useEffect(() => {
     loadModules();
@@ -35,24 +75,33 @@ export default function ModuleList({ productId, onUpdate }: ModuleListProps) {
       const data = await modulesAPI.getAll(params);
       setModules(data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load modules');
+      setError(err instanceof Error ? err.message : "Failed to load modules");
     } finally {
       setLoading(false);
     }
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this module?')) {
+    if (!confirm("Are you sure you want to delete this module?")) {
       return;
     }
 
     try {
       setDeletingId(id);
       await modulesAPI.delete(id);
+      // Optimistically update the UI by removing the deleted module immediately
+      setModules((prevModules) => prevModules.filter((m) => m.id !== id));
+      // Dispatch custom event to notify other components (like ProductWorkspace)
+      window.dispatchEvent(
+        new CustomEvent("moduleDeleted", { detail: { moduleId: id } })
+      );
+      // Also reload to ensure consistency
       await loadModules();
       onUpdate?.();
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to delete module');
+      // If deletion failed, reload to restore the correct state
+      await loadModules();
+      alert(err instanceof Error ? err.message : "Failed to delete module");
     } finally {
       setDeletingId(null);
     }
@@ -61,6 +110,14 @@ export default function ModuleList({ productId, onUpdate }: ModuleListProps) {
   const handleCreate = async () => {
     await loadModules();
     setShowCreateModal(false);
+    // Dispatch event is handled by ModuleForm, but we'll also dispatch here for safety
+    if (productId) {
+      window.dispatchEvent(
+        new CustomEvent("moduleCreated", {
+          detail: { productId },
+        })
+      );
+    }
     onUpdate?.();
   };
 
@@ -80,13 +137,48 @@ export default function ModuleList({ productId, onUpdate }: ModuleListProps) {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-4">
         <h2 className="text-2xl font-bold">Modules</h2>
-        <Button onClick={() => setShowCreateModal(true)}>
-          <Plus className="h-4 w-4 mr-2" />
-          Create Module
-        </Button>
+        <div className="flex items-center gap-4">
+          {!propProductId && (
+            <div className="flex items-center gap-2">
+              <Label htmlFor="product-select" className="text-sm">
+                Select Product:
+              </Label>
+              <Select
+                value={selectedProductId}
+                onValueChange={(value) => setSelectedProductId(value)}
+              >
+                <SelectTrigger id="product-select" className="w-[200px]">
+                  <SelectValue placeholder="Select a product" />
+                </SelectTrigger>
+                <SelectContent>
+                  {products.map((product) => (
+                    <SelectItem key={product.id} value={product.id}>
+                      {product.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+          <Button
+            onClick={() => setShowCreateModal(true)}
+            disabled={!productId}
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Create Module
+          </Button>
+        </div>
       </div>
+
+      {!propProductId && !productId && (
+        <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg mb-4">
+          <p className="text-sm text-yellow-800">
+            Please select a product above to view and manage modules.
+          </p>
+        </div>
+      )}
 
       {modules.length === 0 ? (
         <Card>
@@ -111,25 +203,21 @@ export default function ModuleList({ productId, onUpdate }: ModuleListProps) {
                       )}
                     </CardTitle>
                     {module.description && (
-                      <p className="text-sm text-muted-foreground mt-1">{module.description}</p>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        {module.description}
+                      </p>
                     )}
                   </div>
                 </div>
               </CardHeader>
               <CardContent>
                 <div className="space-y-2 text-sm">
-                  {module.enabled_steps.length > 0 && (
-                    <div>
-                      <span className="font-medium">Steps: </span>
-                      <span className="text-muted-foreground">
-                        {module.enabled_steps.join(', ')}
-                      </span>
-                    </div>
-                  )}
                   {module.owner_id && (
                     <div>
                       <span className="font-medium">Owner: </span>
-                      <span className="text-muted-foreground">{module.owner_id}</span>
+                      <span className="text-muted-foreground">
+                        {module.owner_id}
+                      </span>
                     </div>
                   )}
                 </div>
@@ -163,12 +251,28 @@ export default function ModuleList({ productId, onUpdate }: ModuleListProps) {
         onClose={() => setShowCreateModal(false)}
         title="Create Module"
       >
-        <ModuleForm
-          module={null}
-          productId={productId}
-          onSuccess={handleCreate}
-          onCancel={() => setShowCreateModal(false)}
-        />
+        {productId ? (
+          <ModuleForm
+            module={null}
+            productId={productId}
+            onSuccess={handleCreate}
+            onCancel={() => setShowCreateModal(false)}
+          />
+        ) : (
+          <div className="p-4">
+            <p className="text-red-500">
+              Error: No product selected. Please select a product first before
+              creating a module.
+            </p>
+            <Button
+              variant="outline"
+              onClick={() => setShowCreateModal(false)}
+              className="mt-4"
+            >
+              Close
+            </Button>
+          </div>
+        )}
       </Modal>
 
       <Modal
@@ -179,7 +283,7 @@ export default function ModuleList({ productId, onUpdate }: ModuleListProps) {
         {editingModule && (
           <ModuleForm
             module={editingModule}
-            productId={productId}
+            productId={productId || editingModule.product_id}
             onSuccess={handleUpdate}
             onCancel={() => setEditingModule(null)}
           />
@@ -188,4 +292,3 @@ export default function ModuleList({ productId, onUpdate }: ModuleListProps) {
     </div>
   );
 }
-

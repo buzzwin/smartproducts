@@ -1,44 +1,77 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import { productsAPI, strategiesAPI, problemsAPI, insightsAPI, featuresAPI, releasesAPI, stakeholdersAPI, metricsAPI, tasksAPI, modulesAPI, unifiedCostsAPI } from '@/lib/api';
-import type { Product, Strategy, Problem, Insight, Feature, Release, Stakeholder, Metric, Task, Module, Cost } from '@/types';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Progress } from '@/components/ui/progress';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { 
-  Target, Lightbulb, CheckCircle2, Users, BarChart3, DollarSign,
-  ChevronRight, CheckCircle, Circle, AlertCircle, ArrowRight
-} from 'lucide-react';
-import StrategyView from './strategy/StrategyView';
-import ProblemList from './discovery/ProblemList';
-import ProblemInsightView from './discovery/ProblemInsightView';
-import ExecutionView from './execution/ExecutionView';
-import StakeholderList from './stakeholders/StakeholderList';
-import ModuleForm from './modules/ModuleForm';
-import CostView from './economics/CostView';
-import MetricsView from './metrics/MetricsView';
-import Modal from './Modal';
-import ProductForm from './ProductForm';
-import Link from 'next/link';
-import { Settings, Plus } from 'lucide-react';
-import { useUser } from '@clerk/nextjs';
-import { ThemeToggle } from './ThemeToggle';
+import { useState, useEffect, useRef, useCallback } from "react";
+import {
+  productsAPI,
+  strategiesAPI,
+  problemsAPI,
+  insightsAPI,
+  featuresAPI,
+  releasesAPI,
+  stakeholdersAPI,
+  metricsAPI,
+  tasksAPI,
+  modulesAPI,
+  unifiedCostsAPI,
+} from "@/lib/api";
+import type {
+  Product,
+  Strategy,
+  Problem,
+  Insight,
+  Feature,
+  Release,
+  Stakeholder,
+  Metric,
+  Task,
+  Module,
+  Cost,
+} from "@/types";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Target,
+  Lightbulb,
+  CheckCircle2,
+  Users,
+  BarChart3,
+  DollarSign,
+  ChevronRight,
+  CheckCircle,
+  Circle,
+  AlertCircle,
+  ArrowRight,
+} from "lucide-react";
+import StrategyView from "./strategy/StrategyView";
+import ProblemList from "./discovery/ProblemList";
+import ProblemInsightView from "./discovery/ProblemInsightView";
+import ExecutionView from "./execution/ExecutionView";
+import StakeholderList from "./stakeholders/StakeholderList";
+import ModuleForm from "./modules/ModuleForm";
+import CostView from "./economics/CostView";
+import MetricsView from "./metrics/MetricsView";
+import Modal from "./Modal";
+import ProductForm from "./ProductForm";
+import Link from "next/link";
+import { Settings, Plus } from "lucide-react";
+import { useUser } from "@clerk/nextjs";
+import { ThemeToggle } from "./ThemeToggle";
 
 interface ProductWorkspaceProps {
   onUpdate?: () => void;
 }
 
-type WorkflowStep = 
-  | 'overview'
-  | 'strategy'
-  | 'discovery'
-  | 'execution'
-  | 'stakeholders'
-  | 'metrics'
-  | 'cost';
+type WorkflowStep =
+  | "overview"
+  | "strategy"
+  | "discovery"
+  | "execution"
+  | "stakeholders"
+  | "metrics"
+  | "cost";
 
 interface StepStatus {
   completed: boolean;
@@ -49,19 +82,19 @@ interface StepStatus {
 export default function ProductWorkspace({ onUpdate }: ProductWorkspaceProps) {
   const { user } = useUser();
   const [products, setProducts] = useState<Product[]>([]);
-  const [selectedProductId, setSelectedProductId] = useState<string>('');
-  const [activeStep, setActiveStep] = useState<WorkflowStep>('overview');
+  const [selectedProductId, setSelectedProductId] = useState<string>("");
+  const [activeStep, setActiveStep] = useState<WorkflowStep>("overview");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showCreateProductModal, setShowCreateProductModal] = useState(false);
-  
+
   // Module state
   const [modules, setModules] = useState<Module[]>([]);
-  const [selectedModuleId, setSelectedModuleId] = useState<string>('');
+  const [selectedModuleId, setSelectedModuleId] = useState<string>("");
   const [selectedModule, setSelectedModule] = useState<Module | null>(null);
   const [showModuleModal, setShowModuleModal] = useState(false);
   const [editingModule, setEditingModule] = useState<Module | null>(null);
-  
+
   // Data for each step
   const [strategies, setStrategies] = useState<Strategy[]>([]);
   const [problems, setProblems] = useState<Problem[]>([]);
@@ -79,14 +112,80 @@ export default function ProductWorkspace({ onUpdate }: ProductWorkspaceProps) {
 
   // Debug: Log state changes
   useEffect(() => {
-    console.log('ProductWorkspace - showCreateProductModal changed to:', showCreateProductModal);
+    console.log(
+      "ProductWorkspace - showCreateProductModal changed to:",
+      showCreateProductModal
+    );
   }, [showCreateProductModal]);
+
+  const loadModules = useCallback(async () => {
+    if (!selectedProductId) return;
+
+    try {
+      console.log(
+        "ProductWorkspace: Loading modules for product",
+        selectedProductId
+      );
+      const data = await modulesAPI.getByProduct(selectedProductId);
+      console.log("ProductWorkspace: Loaded modules", data?.length || 0, data);
+      setModules(data);
+
+      // Default to Product-level (no module) - don't auto-select a module
+      setSelectedModuleId("");
+      setSelectedModule(null);
+    } catch (err) {
+      console.error("Failed to load modules:", err);
+      setModules([]);
+    }
+  }, [selectedProductId]);
 
   useEffect(() => {
     if (selectedProductId) {
       loadModules();
     }
-  }, [selectedProductId]);
+  }, [selectedProductId, loadModules]);
+
+  // Listen for module creation/update/deletion events from other components
+  useEffect(() => {
+    const handleModuleChange = async (event: Event) => {
+      const customEvent = event as CustomEvent<{
+        moduleId?: string;
+        productId?: string;
+      }>;
+      // Only refresh if the event is for the current product
+      if (
+        selectedProductId &&
+        (!customEvent.detail?.productId ||
+          customEvent.detail.productId === selectedProductId)
+      ) {
+        console.log("ProductWorkspace: Module change event received", {
+          eventType: event.type,
+          detail: customEvent.detail,
+          currentProductId: selectedProductId,
+        });
+        // Force reload modules with fresh data
+        await loadModules();
+        console.log("ProductWorkspace: Modules reloaded after", event.type);
+        // If the deleted module was the selected one, clear selection
+        if (
+          event.type === "moduleDeleted" &&
+          customEvent.detail?.moduleId === selectedModuleId
+        ) {
+          setSelectedModuleId("");
+          setSelectedModule(null);
+        }
+      }
+    };
+
+    window.addEventListener("moduleCreated", handleModuleChange);
+    window.addEventListener("moduleUpdated", handleModuleChange);
+    window.addEventListener("moduleDeleted", handleModuleChange);
+    return () => {
+      window.removeEventListener("moduleCreated", handleModuleChange);
+      window.removeEventListener("moduleUpdated", handleModuleChange);
+      window.removeEventListener("moduleDeleted", handleModuleChange);
+    };
+  }, [selectedProductId, selectedModuleId, loadModules]);
 
   useEffect(() => {
     if (selectedProductId) {
@@ -96,15 +195,10 @@ export default function ProductWorkspace({ onUpdate }: ProductWorkspaceProps) {
 
   useEffect(() => {
     if (selectedModuleId && modules.length > 0) {
-      const module = modules.find(m => m.id === selectedModuleId);
+      const module = modules.find((m) => m.id === selectedModuleId);
       setSelectedModule(module || null);
-      
-      // If current active step is not in enabled steps, switch to overview
-      if (module && module.enabled_steps && module.enabled_steps.length > 0) {
-        if (activeStep !== 'overview' && !module.enabled_steps.includes(activeStep)) {
-          setActiveStep('overview');
-        }
-      }
+
+      // All modules are available in all steps - no filtering needed
     } else {
       setSelectedModule(null);
     }
@@ -120,48 +214,31 @@ export default function ProductWorkspace({ onUpdate }: ProductWorkspaceProps) {
         setSelectedProductId(data[0].id);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load products');
+      setError(err instanceof Error ? err.message : "Failed to load products");
     } finally {
       setLoading(false);
     }
   };
 
-  const loadModules = async () => {
-    if (!selectedProductId) return;
-    
-    try {
-      const data = await modulesAPI.getByProduct(selectedProductId);
-      setModules(data);
-      
-      // Set default module or first module
-      if (data.length > 0) {
-        const defaultModule = data.find(m => m.is_default) || data[0];
-        setSelectedModuleId(defaultModule.id);
-        setSelectedModule(defaultModule);
-      } else {
-        setSelectedModuleId('');
-        setSelectedModule(null);
-      }
-    } catch (err) {
-      console.error('Error loading modules:', err);
-    }
-  };
-
   const loadProductData = async () => {
     if (!selectedProductId) return;
-    
+
     try {
       // Load product-level strategies (always)
-      const productStrategies = await strategiesAPI.getByProduct(selectedProductId, undefined).catch(() => []);
-      
+      const productStrategies = await strategiesAPI
+        .getByProduct(selectedProductId, undefined)
+        .catch(() => []);
+
       // Load module-level strategies if module is selected
-      const moduleStrategies = selectedModuleId 
-        ? await strategiesAPI.getByProduct(selectedProductId, selectedModuleId).catch(() => [])
+      const moduleStrategies = selectedModuleId
+        ? await strategiesAPI
+            .getByProduct(selectedProductId, selectedModuleId)
+            .catch(() => [])
         : [];
-      
+
       // Combine strategies for step status calculation
       const allStrategies = [...productStrategies, ...moduleStrategies];
-      
+
       const [
         problemsData,
         insightsData,
@@ -170,16 +247,31 @@ export default function ProductWorkspace({ onUpdate }: ProductWorkspaceProps) {
         stakeholdersData,
         metricsData,
         tasksData,
-        costsData
+        costsData,
       ] = await Promise.all([
-        problemsAPI.getByProduct(selectedProductId, selectedModuleId || undefined).catch(() => []),
-        insightsAPI.getByProduct(selectedProductId, selectedModuleId || undefined).catch(() => []),
+        problemsAPI
+          .getByProduct(selectedProductId, selectedModuleId || undefined)
+          .catch(() => []),
+        insightsAPI
+          .getByProduct(selectedProductId, selectedModuleId || undefined)
+          .catch(() => []),
         featuresAPI.getAll({ product_id: selectedProductId }).catch(() => []), // Features can be module-scoped or product-level
-        releasesAPI.getByProduct(selectedProductId, selectedModuleId || undefined).catch(() => []),
-        stakeholdersAPI.getByProduct(selectedProductId, selectedModuleId || undefined).catch(() => []),
-        metricsAPI.getByProduct(selectedProductId, selectedModuleId || undefined).catch(() => []),
+        releasesAPI
+          .getByProduct(selectedProductId, selectedModuleId || undefined)
+          .catch(() => []),
+        stakeholdersAPI
+          .getByProduct(selectedProductId, selectedModuleId || undefined)
+          .catch(() => []),
+        metricsAPI
+          .getByProduct(selectedProductId, selectedModuleId || undefined)
+          .catch(() => []),
         tasksAPI.getAll({ product_id: selectedProductId }).catch(() => []), // Tasks are feature-scoped, can be module-scoped
-        unifiedCostsAPI.getAll({ product_id: selectedProductId, module_id: selectedModuleId || undefined }).catch(() => [])
+        unifiedCostsAPI
+          .getAll({
+            product_id: selectedProductId,
+            module_id: selectedModuleId || undefined,
+          })
+          .catch(() => []),
       ]);
 
       setStrategies(allStrategies);
@@ -192,7 +284,7 @@ export default function ProductWorkspace({ onUpdate }: ProductWorkspaceProps) {
       setTasks(tasksData);
       setCosts(costsData);
     } catch (err) {
-      console.error('Error loading product data:', err);
+      console.error("Error loading product data:", err);
     }
   };
 
@@ -214,41 +306,41 @@ export default function ProductWorkspace({ onUpdate }: ProductWorkspaceProps) {
 
   const getStepStatus = (step: WorkflowStep): StepStatus => {
     switch (step) {
-      case 'strategy':
+      case "strategy":
         return {
           completed: strategies.length > 0,
-          inProgress: strategies.some(s => s.status === 'draft'),
-          count: strategies.length
+          inProgress: strategies.some((s) => s.status === "draft"),
+          count: strategies.length,
         };
-      case 'discovery':
+      case "discovery":
         return {
           completed: problems.length > 0 || insights.length > 0,
-          inProgress: problems.some(p => p.status === 'validating'),
-          count: problems.length + insights.length
+          inProgress: problems.some((p) => p.status === "validating"),
+          count: problems.length + insights.length,
         };
-      case 'execution':
+      case "execution":
         return {
-          completed: tasks.some(t => t.status === 'done'),
-          inProgress: tasks.some(t => t.status === 'in_progress'),
-          count: tasks.length
+          completed: tasks.some((t) => t.status === "done"),
+          inProgress: tasks.some((t) => t.status === "in_progress"),
+          count: tasks.length,
         };
-      case 'stakeholders':
+      case "stakeholders":
         return {
           completed: stakeholders.length > 0,
           inProgress: false,
-          count: stakeholders.length
+          count: stakeholders.length,
         };
-      case 'metrics':
+      case "metrics":
         return {
           completed: metrics.length > 0,
-          inProgress: metrics.some(m => m.current_value !== null),
-          count: metrics.length
+          inProgress: metrics.some((m) => m.current_value !== null),
+          count: metrics.length,
         };
-      case 'cost':
+      case "cost":
         return {
           completed: costs.length > 0,
           inProgress: false,
-          count: costs.length
+          count: costs.length,
         };
       default:
         return { completed: false, inProgress: false, count: 0 };
@@ -257,111 +349,101 @@ export default function ProductWorkspace({ onUpdate }: ProductWorkspaceProps) {
 
   const getCompletionPercentage = (): number => {
     // Only count enabled steps from the module
-    const enabledStepIds = selectedModule?.enabled_steps || 
-      ['strategy', 'discovery', 'execution', 'stakeholders', 'metrics', 'cost'];
-    const completedSteps = enabledStepIds.filter(stepId => 
-      getStepStatus(stepId as WorkflowStep).completed
+    // All modules use all steps
+    const allStepIds = [
+      "strategy",
+      "discovery",
+      "execution",
+      "stakeholders",
+      "metrics",
+      "cost",
+    ];
+    const completedSteps = allStepIds.filter(
+      (stepId) => getStepStatus(stepId as WorkflowStep).completed
     ).length;
-    return enabledStepIds.length > 0 
-      ? Math.round((completedSteps / enabledStepIds.length) * 100)
-      : 0;
+    return Math.round((completedSteps / allStepIds.length) * 100);
   };
 
   const allWorkflowSteps = [
     {
-      id: 'strategy' as WorkflowStep,
-      title: 'Strategy & Vision',
-      description: 'Define your product vision, strategy, and OKRs',
+      id: "strategy" as WorkflowStep,
+      title: "Strategy & Vision",
+      description: "Define your product vision, strategy, and OKRs",
       icon: Target,
-      color: 'blue'
+      color: "blue",
     },
     {
-      id: 'discovery' as WorkflowStep,
-      title: 'Customer Discovery',
-      description: 'Understand problems and gather customer insights',
+      id: "discovery" as WorkflowStep,
+      title: "Customer Discovery",
+      description: "Understand problems and gather customer insights",
       icon: Lightbulb,
-      color: 'yellow'
+      color: "yellow",
     },
     {
-      id: 'execution' as WorkflowStep,
-      title: 'Execution',
-      description: 'Track tasks, velocity, and delivery progress',
+      id: "execution" as WorkflowStep,
+      title: "Execution",
+      description: "Track tasks, velocity, and delivery progress",
       icon: CheckCircle2,
-      color: 'orange'
+      color: "orange",
     },
     {
-      id: 'stakeholders' as WorkflowStep,
-      title: 'Stakeholders',
-      description: 'Manage stakeholders and communication',
+      id: "stakeholders" as WorkflowStep,
+      title: "Stakeholders",
+      description: "Manage stakeholders and communication",
       icon: Users,
-      color: 'pink'
+      color: "pink",
     },
     {
-      id: 'metrics' as WorkflowStep,
-      title: 'Metrics & Outcomes',
-      description: 'Track success metrics and measure outcomes',
+      id: "metrics" as WorkflowStep,
+      title: "Metrics & Outcomes",
+      description: "Track success metrics and measure outcomes",
       icon: BarChart3,
-      color: 'indigo'
+      color: "indigo",
     },
     {
-      id: 'cost' as WorkflowStep,
-      title: 'Costs',
-      description: 'Track and manage costs at module and product level',
+      id: "cost" as WorkflowStep,
+      title: "Costs",
+      description: "Track and manage costs at module and product level",
       icon: DollarSign,
-      color: 'green'
-    }
+      color: "green",
+    },
   ];
 
-  // Get filtered and ordered workflow steps based on selected module
+  // Get workflow steps - all modules use all steps
   const getWorkflowSteps = () => {
-    if (!selectedModule || !selectedModule.enabled_steps || selectedModule.enabled_steps.length === 0) {
-      // If no module or no enabled steps, show all steps in default order
-      return allWorkflowSteps;
-    }
-
-    // Filter to only enabled steps, but always include 'cost' and 'overview' steps
-    const enabledSteps = allWorkflowSteps.filter(step => 
-      selectedModule.enabled_steps.includes(step.id) || step.id === 'cost'
-    );
-
-    // Order according to step_order if provided
-    if (selectedModule.step_order && selectedModule.step_order.length > 0) {
-      const orderedSteps: typeof allWorkflowSteps = [];
-      const stepMap = new Map(enabledSteps.map(step => [step.id, step]));
-      
-      // Add steps in the specified order
-      for (const stepId of selectedModule.step_order) {
-        const step = stepMap.get(stepId as WorkflowStep);
-        if (step) {
-          orderedSteps.push(step);
-          stepMap.delete(stepId as WorkflowStep);
-        }
-      }
-      
-      // Add any remaining enabled steps that weren't in the order
-      stepMap.forEach(step => orderedSteps.push(step));
-      
-      // Ensure 'cost' is at the end if it wasn't in step_order
-      const costStep = orderedSteps.find(s => s.id === 'cost');
-      if (costStep) {
-        const withoutCost = orderedSteps.filter(s => s.id !== 'cost');
-        return [...withoutCost, costStep];
-      }
-      
-      return orderedSteps;
-    }
-
-    // Ensure 'cost' is at the end if not explicitly ordered
-    const costStep = enabledSteps.find(s => s.id === 'cost');
-    if (costStep) {
-      const withoutCost = enabledSteps.filter(s => s.id !== 'cost');
-      return [...withoutCost, costStep];
-    }
-
-    return enabledSteps;
+    // All modules use all steps in default order
+    return allWorkflowSteps;
   };
 
   const workflowSteps = getWorkflowSteps();
+
+  // Debug: Log activeStep changes
+  useEffect(() => {
+    // #region agent log
+    fetch("http://127.0.0.1:7242/ingest/968d187c-a049-4e90-98da-550ce5ae9fdb", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        location: "ProductWorkspace.tsx:368",
+        message: "activeStep state changed",
+        data: {
+          activeStep,
+          workflowStepIds: workflowSteps.map((s) => s.id),
+          hasCostStep: workflowSteps.some((s) => s.id === "cost"),
+        },
+        timestamp: Date.now(),
+        sessionId: "debug-session",
+        runId: "run1",
+        hypothesisId: "A",
+      }),
+    }).catch(() => {});
+    // #endregion
+    console.log("activeStep changed to:", activeStep);
+    console.log(
+      "workflowSteps:",
+      workflowSteps.map((s) => s.id)
+    );
+  }, [activeStep, workflowSteps]);
 
   if (loading) {
     return (
@@ -387,34 +469,37 @@ export default function ProductWorkspace({ onUpdate }: ProductWorkspaceProps) {
             <CardContent className="p-8 text-center">
               <h2 className="text-2xl font-bold mb-4">No Products Yet</h2>
               <p className="text-muted-foreground mb-6">
-                Create your first product to get started with product management.
+                Create your first product to get started with product
+                management.
               </p>
               <button
                 type="button"
                 onClick={(e) => {
-                  console.log('Create Product button clicked in ProductWorkspace');
+                  console.log(
+                    "Create Product button clicked in ProductWorkspace"
+                  );
                   e.preventDefault();
                   e.stopPropagation();
-                  console.log('Setting showCreateProductModal to true');
+                  console.log("Setting showCreateProductModal to true");
                   setShowCreateProductModal(true);
                 }}
                 onMouseDown={(e) => {
-                  console.log('Button mousedown event');
+                  console.log("Button mousedown event");
                   e.preventDefault();
                 }}
                 onMouseUp={(e) => {
-                  console.log('Button mouseup event');
+                  console.log("Button mouseup event");
                 }}
                 style={{
-                  padding: '10px 20px',
-                  fontSize: '14px',
-                  backgroundColor: '#007bff',
-                  color: '#fff',
-                  border: 'none',
-                  borderRadius: '6px',
-                  cursor: 'pointer',
+                  padding: "10px 20px",
+                  fontSize: "14px",
+                  backgroundColor: "#007bff",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: "6px",
+                  cursor: "pointer",
                   fontWeight: 500,
-                  position: 'relative',
+                  position: "relative",
                   zIndex: 1,
                 }}
               >
@@ -428,7 +513,7 @@ export default function ProductWorkspace({ onUpdate }: ProductWorkspaceProps) {
         <Modal
           isOpen={showCreateProductModal}
           onClose={() => {
-            console.log('Create Product modal close clicked');
+            console.log("Create Product modal close clicked");
             setShowCreateProductModal(false);
           }}
           title="Create Product"
@@ -436,13 +521,15 @@ export default function ProductWorkspace({ onUpdate }: ProductWorkspaceProps) {
           {showCreateProductModal && (
             <ProductForm
               onSuccess={() => {
-                console.log('Product created successfully from ProductWorkspace');
+                console.log(
+                  "Product created successfully from ProductWorkspace"
+                );
                 setShowCreateProductModal(false);
                 loadProducts();
                 if (onUpdate) onUpdate();
               }}
               onCancel={() => {
-                console.log('Product form cancelled from ProductWorkspace');
+                console.log("Product form cancelled from ProductWorkspace");
                 setShowCreateProductModal(false);
               }}
             />
@@ -452,7 +539,7 @@ export default function ProductWorkspace({ onUpdate }: ProductWorkspaceProps) {
     );
   }
 
-  const selectedProduct = products.find(p => p.id === selectedProductId);
+  const selectedProduct = products.find((p) => p.id === selectedProductId);
   const completionPercentage = getCompletionPercentage();
 
   return (
@@ -462,13 +549,15 @@ export default function ProductWorkspace({ onUpdate }: ProductWorkspaceProps) {
         <div className="container mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4 flex-wrap">
-              <h1 className="text-2xl font-bold text-foreground">Product Workspace</h1>
+              <h1 className="text-2xl font-bold text-foreground">
+                Product Workspace
+              </h1>
               <select
                 value={selectedProductId}
                 onChange={(e) => setSelectedProductId(e.target.value)}
                 className="px-4 py-2 border border-input bg-background text-foreground rounded-lg focus:outline-none focus:ring-2 focus:ring-ring"
               >
-                {products.map(product => (
+                {products.map((product) => (
                   <option key={product.id} value={product.id}>
                     {product.name}
                   </option>
@@ -481,14 +570,17 @@ export default function ProductWorkspace({ onUpdate }: ProductWorkspaceProps) {
                     onChange={(e) => handleModuleChange(e.target.value)}
                     className="px-4 py-2 border border-input bg-background text-foreground rounded-lg focus:outline-none focus:ring-2 focus:ring-ring"
                   >
-                    {modules.length === 0 ? (
-                      <option value="">No modules</option>
-                    ) : (
-                      modules.map(module => (
+                    <option value="">Product-level (no module)</option>
+                    {modules.length > 0 ? (
+                      modules.map((module) => (
                         <option key={module.id} value={module.id}>
-                          {module.name} {module.is_default && '(Default)'}
+                          {module.name} {module.is_default && "(Default)"}
                         </option>
                       ))
+                    ) : (
+                      <option value="" disabled>
+                        No modules available
+                      </option>
                     )}
                   </select>
                   <Button
@@ -522,7 +614,9 @@ export default function ProductWorkspace({ onUpdate }: ProductWorkspaceProps) {
               <ThemeToggle />
               <div className="text-right">
                 <div className="text-sm text-muted-foreground">Completion</div>
-                <div className="text-lg font-semibold text-foreground">{completionPercentage}%</div>
+                <div className="text-lg font-semibold text-foreground">
+                  {completionPercentage}%
+                </div>
               </div>
               <Progress value={completionPercentage} className="w-32" />
             </div>
@@ -533,216 +627,428 @@ export default function ProductWorkspace({ onUpdate }: ProductWorkspaceProps) {
       <div className="container mx-auto px-6 py-6 bg-background">
         {/* Workflow Tabs Navigation */}
         {selectedProductId && (
-          <div className="mb-6">
-            <Tabs value={activeStep} onValueChange={(value) => setActiveStep(value as WorkflowStep)}>
-              <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-1 h-auto p-1">
-                <TabsTrigger value="overview" className="flex items-center gap-2">
-                  Overview
-                </TabsTrigger>
-                {workflowSteps.map((step) => {
-                  const Icon = step.icon;
-                  const status = getStepStatus(step.id);
-                  return (
-                    <TabsTrigger 
-                      key={step.id} 
-                      value={step.id} 
-                      className="flex items-center gap-2"
-                    >
-                      <Icon className="h-4 w-4" />
-                      {step.title}
-                      {status.count > 0 && (
-                        <Badge variant="secondary" className="ml-1">{status.count}</Badge>
-                      )}
-                    </TabsTrigger>
-                  );
-                })}
-              </TabsList>
-            </Tabs>
-          </div>
-        )}
-
-        {activeStep === 'overview' ? (
           <>
-            {/* Product Overview */}
-            <Card className="mb-6">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  {selectedProduct?.name}
-                  <Badge variant="outline">{selectedProduct?.description || 'No description'}</Badge>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-muted-foreground">{selectedProduct?.description}</p>
-              </CardContent>
-            </Card>
-
-            {/* Workflow Steps */}
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {workflowSteps.map((step, index) => {
-                const status = getStepStatus(step.id);
-                const Icon = step.icon;
-                
-                return (
-                  <Card
-                    key={step.id}
-                    className="cursor-pointer hover:shadow-lg transition-shadow"
-                    onClick={() => setActiveStep(step.id)}
+            {/* #region agent log */}
+            {(() => {
+              fetch(
+                "http://127.0.0.1:7242/ingest/968d187c-a049-4e90-98da-550ce5ae9fdb",
+                {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    location: "ProductWorkspace.tsx:542",
+                    message: "Tabs component render",
+                    data: {
+                      tabsValue: activeStep,
+                      selectedProductId: !!selectedProductId,
+                    },
+                    timestamp: Date.now(),
+                    sessionId: "debug-session",
+                    runId: "run1",
+                    hypothesisId: "E",
+                  }),
+                }
+              ).catch(() => {});
+              return null;
+            })()}
+            {/* #endregion */}
+            <Tabs
+              value={activeStep}
+              onValueChange={(value) => {
+                // #region agent log
+                fetch(
+                  "http://127.0.0.1:7242/ingest/968d187c-a049-4e90-98da-550ce5ae9fdb",
+                  {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      location: "ProductWorkspace.tsx:545",
+                      message: "Tabs onValueChange called",
+                      data: {
+                        clickedValue: value,
+                        currentActiveStep: activeStep,
+                        isCost: value === "cost",
+                      },
+                      timestamp: Date.now(),
+                      sessionId: "debug-session",
+                      runId: "run1",
+                      hypothesisId: "B",
+                    }),
+                  }
+                ).catch(() => {});
+                // #endregion
+                console.log(
+                  "Tab clicked, value:",
+                  value,
+                  "current activeStep:",
+                  activeStep
+                );
+                const newStep = value as WorkflowStep;
+                console.log("Setting activeStep to:", newStep);
+                setActiveStep(newStep);
+              }}
+              className="w-full"
+            >
+              <div className="mb-6">
+                <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-1 h-auto p-1">
+                  <TabsTrigger
+                    value="overview"
+                    className="flex items-center gap-2"
                   >
-                    <CardHeader>
-                      <div className="flex items-start justify-between">
-                        <div className="flex items-center gap-3">
-                          <div className={`p-2 rounded-lg ${
-                            step.color === 'blue' ? 'bg-blue-100 dark:bg-blue-900/30' :
-                            step.color === 'yellow' ? 'bg-yellow-100 dark:bg-yellow-900/30' :
-                            step.color === 'purple' ? 'bg-purple-100 dark:bg-purple-900/30' :
-                            step.color === 'green' ? 'bg-green-100 dark:bg-green-900/30' :
-                            step.color === 'orange' ? 'bg-orange-100 dark:bg-orange-900/30' :
-                            step.color === 'pink' ? 'bg-pink-100 dark:bg-pink-900/30' :
-                            'bg-indigo-100 dark:bg-indigo-900/30'
-                          }`}>
-                            <Icon className={`h-5 w-5 ${
-                              step.color === 'blue' ? 'text-blue-600 dark:text-blue-400' :
-                              step.color === 'yellow' ? 'text-yellow-600 dark:text-yellow-400' :
-                              step.color === 'purple' ? 'text-purple-600 dark:text-purple-400' :
-                              step.color === 'green' ? 'text-green-600 dark:text-green-400' :
-                              step.color === 'orange' ? 'text-orange-600 dark:text-orange-400' :
-                              step.color === 'pink' ? 'text-pink-600 dark:text-pink-400' :
-                              'text-indigo-600 dark:text-indigo-400'
-                            }`} />
+                    Overview
+                  </TabsTrigger>
+                  {workflowSteps.map((step) => {
+                    const Icon = step.icon;
+                    const status = getStepStatus(step.id);
+                    // #region agent log
+                    if (step.id === "cost") {
+                      fetch(
+                        "http://127.0.0.1:7242/ingest/968d187c-a049-4e90-98da-550ce5ae9fdb",
+                        {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({
+                            location: "ProductWorkspace.tsx:558",
+                            message: "Rendering TabsTrigger for cost",
+                            data: { stepId: step.id, stepTitle: step.title },
+                            timestamp: Date.now(),
+                            sessionId: "debug-session",
+                            runId: "run1",
+                            hypothesisId: "A",
+                          }),
+                        }
+                      ).catch(() => {});
+                    }
+                    // #endregion
+                    return (
+                      <TabsTrigger
+                        key={step.id}
+                        value={step.id}
+                        className="flex items-center gap-2"
+                        onClick={() => {
+                          // #region agent log
+                          if (step.id === "cost") {
+                            fetch(
+                              "http://127.0.0.1:7242/ingest/968d187c-a049-4e90-98da-550ce5ae9fdb",
+                              {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({
+                                  location: "ProductWorkspace.tsx:565",
+                                  message: "Cost TabsTrigger onClick fired",
+                                  data: { stepId: step.id },
+                                  timestamp: Date.now(),
+                                  sessionId: "debug-session",
+                                  runId: "run1",
+                                  hypothesisId: "D",
+                                }),
+                              }
+                            ).catch(() => {});
+                          }
+                          // #endregion
+                        }}
+                      >
+                        <Icon className="h-4 w-4" />
+                        {step.title}
+                        {status.count > 0 && (
+                          <Badge variant="secondary" className="ml-1">
+                            {status.count}
+                          </Badge>
+                        )}
+                      </TabsTrigger>
+                    );
+                  })}
+                </TabsList>
+              </div>
+
+              <TabsContent value="overview" className="mt-6">
+                {/* Product Overview */}
+                <Card className="mb-6">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      {selectedProduct?.name}
+                      <Badge variant="outline">
+                        {selectedProduct?.description || "No description"}
+                      </Badge>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-muted-foreground">
+                      {selectedProduct?.description}
+                    </p>
+                  </CardContent>
+                </Card>
+
+                {/* Workflow Steps */}
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                  {workflowSteps.map((step, index) => {
+                    const status = getStepStatus(step.id);
+                    const Icon = step.icon;
+
+                    return (
+                      <Card
+                        key={step.id}
+                        className="cursor-pointer hover:shadow-lg transition-shadow"
+                        onClick={() => setActiveStep(step.id)}
+                      >
+                        <CardHeader>
+                          <div className="flex items-start justify-between">
+                            <div className="flex items-center gap-3">
+                              <div
+                                className={`p-2 rounded-lg ${
+                                  step.color === "blue"
+                                    ? "bg-blue-100 dark:bg-blue-900/30"
+                                    : step.color === "yellow"
+                                    ? "bg-yellow-100 dark:bg-yellow-900/30"
+                                    : step.color === "purple"
+                                    ? "bg-purple-100 dark:bg-purple-900/30"
+                                    : step.color === "green"
+                                    ? "bg-green-100 dark:bg-green-900/30"
+                                    : step.color === "orange"
+                                    ? "bg-orange-100 dark:bg-orange-900/30"
+                                    : step.color === "pink"
+                                    ? "bg-pink-100 dark:bg-pink-900/30"
+                                    : "bg-indigo-100 dark:bg-indigo-900/30"
+                                }`}
+                              >
+                                <Icon
+                                  className={`h-5 w-5 ${
+                                    step.color === "blue"
+                                      ? "text-blue-600 dark:text-blue-400"
+                                      : step.color === "yellow"
+                                      ? "text-yellow-600 dark:text-yellow-400"
+                                      : step.color === "purple"
+                                      ? "text-purple-600 dark:text-purple-400"
+                                      : step.color === "green"
+                                      ? "text-green-600 dark:text-green-400"
+                                      : step.color === "orange"
+                                      ? "text-orange-600 dark:text-orange-400"
+                                      : step.color === "pink"
+                                      ? "text-pink-600 dark:text-pink-400"
+                                      : "text-indigo-600 dark:text-indigo-400"
+                                  }`}
+                                />
+                              </div>
+                              <div>
+                                <CardTitle className="text-lg">
+                                  {step.title}
+                                </CardTitle>
+                                <p className="text-sm text-muted-foreground mt-1">
+                                  {step.description}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="flex flex-col items-end gap-1">
+                              {status.completed ? (
+                                <CheckCircle className="h-5 w-5 text-green-500 dark:text-green-400" />
+                              ) : status.inProgress ? (
+                                <AlertCircle className="h-5 w-5 text-yellow-500 dark:text-yellow-400" />
+                              ) : (
+                                <Circle className="h-5 w-5 text-gray-300 dark:text-gray-600" />
+                              )}
+                              {status.count > 0 && (
+                                <Badge variant="secondary">
+                                  {status.count}
+                                </Badge>
+                              )}
+                            </div>
                           </div>
-                          <div>
-                            <CardTitle className="text-lg">{step.title}</CardTitle>
-                            <p className="text-sm text-muted-foreground mt-1">{step.description}</p>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm text-muted-foreground">
+                              {status.completed
+                                ? "Completed"
+                                : status.inProgress
+                                ? "In Progress"
+                                : "Not Started"}
+                            </span>
+                            <Button variant="ghost" size="sm">
+                              Open <ChevronRight className="h-4 w-4 ml-1" />
+                            </Button>
                           </div>
-                        </div>
-                        <div className="flex flex-col items-end gap-1">
-                          {status.completed ? (
-                            <CheckCircle className="h-5 w-5 text-green-500 dark:text-green-400" />
-                          ) : status.inProgress ? (
-                            <AlertCircle className="h-5 w-5 text-yellow-500 dark:text-yellow-400" />
-                          ) : (
-                            <Circle className="h-5 w-5 text-gray-300 dark:text-gray-600" />
-                          )}
-                          {status.count > 0 && (
-                            <Badge variant="secondary">{status.count}</Badge>
-                          )}
-                        </div>
-                      </div>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm text-muted-foreground">
-                          {status.completed ? 'Completed' : status.inProgress ? 'In Progress' : 'Not Started'}
-                        </span>
-                        <Button variant="ghost" size="sm">
-                          Open <ChevronRight className="h-4 w-4 ml-1" />
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
+
+                {/* Quick Actions */}
+                <Card className="mt-6">
+                  <CardHeader>
+                    <CardTitle>Quick Actions</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid gap-3 md:grid-cols-3">
+                      {!getStepStatus("strategy").completed && (
+                        <Button
+                          variant="outline"
+                          className="justify-start"
+                          onClick={() => setActiveStep("strategy")}
+                        >
+                          <Target className="mr-2 h-4 w-4" />
+                          Start with Strategy
                         </Button>
+                      )}
+                      {!getStepStatus("discovery").completed && (
+                        <Button
+                          variant="outline"
+                          className="justify-start"
+                          onClick={() => setActiveStep("discovery")}
+                        >
+                          <Lightbulb className="mr-2 h-4 w-4" />
+                          Gather Customer Insights
+                        </Button>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              {workflowSteps.map((step) => {
+                const Icon = step.icon;
+                // #region agent log
+                if (step.id === "cost") {
+                  fetch(
+                    "http://127.0.0.1:7242/ingest/968d187c-a049-4e90-98da-550ce5ae9fdb",
+                    {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        location: "ProductWorkspace.tsx:692",
+                        message: "Rendering TabsContent for cost",
+                        data: {
+                          stepId: step.id,
+                          activeStep,
+                          shouldRender: activeStep === step.id,
+                          selectedProductId: !!selectedProductId,
+                        },
+                        timestamp: Date.now(),
+                        sessionId: "debug-session",
+                        runId: "run1",
+                        hypothesisId: "C",
+                      }),
+                    }
+                  ).catch(() => {});
+                }
+                // #endregion
+                return (
+                  <TabsContent key={step.id} value={step.id} className="mt-6">
+                    {/* Step Header */}
+                    <div className="mb-6">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h2 className="text-3xl font-bold flex items-center gap-2">
+                            <Icon className="h-8 w-8" />
+                            {step.title}
+                          </h2>
+                          <p className="text-muted-foreground mt-1">
+                            {step.description}
+                          </p>
+                        </div>
+                        {(() => {
+                          const currentIndex = workflowSteps.findIndex(
+                            (s) => s.id === step.id
+                          );
+                          const hasNext =
+                            currentIndex >= 0 &&
+                            currentIndex < workflowSteps.length - 1;
+                          return (
+                            hasNext && (
+                              <Button
+                                onClick={() => {
+                                  setActiveStep(
+                                    workflowSteps[currentIndex + 1].id
+                                  );
+                                }}
+                              >
+                                Next Step{" "}
+                                <ArrowRight className="ml-2 h-4 w-4" />
+                              </Button>
+                            )
+                          );
+                        })()}
                       </div>
-                    </CardContent>
-                  </Card>
+                    </div>
+
+                    {/* Step Content */}
+                    <div className="space-y-6">
+                      {step.id === "strategy" && selectedProductId && (
+                        <StrategyView
+                          productId={selectedProductId}
+                          moduleId={selectedModuleId || undefined}
+                          moduleName={selectedModule?.name}
+                        />
+                      )}
+                      {step.id === "discovery" && selectedProductId && (
+                        <div className="space-y-6">
+                          <ProblemInsightView
+                            productId={selectedProductId}
+                            moduleId={selectedModuleId || undefined}
+                          />
+                          <ProblemList
+                            productId={selectedProductId}
+                            moduleId={selectedModuleId || undefined}
+                          />
+                        </div>
+                      )}
+                      {step.id === "execution" && selectedProductId && (
+                        <ExecutionView
+                          productId={selectedProductId}
+                          moduleId={selectedModuleId || undefined}
+                          tasks={tasks}
+                          onUpdate={loadProductData}
+                        />
+                      )}
+                      {step.id === "stakeholders" && selectedProductId && (
+                        <StakeholderList
+                          productId={selectedProductId}
+                          moduleId={selectedModuleId || undefined}
+                        />
+                      )}
+                      {step.id === "metrics" && selectedProductId && (
+                        <MetricsView
+                          productId={selectedProductId}
+                          moduleId={selectedModuleId || undefined}
+                        />
+                      )}
+                      {step.id === "cost" && selectedProductId && (
+                        <>
+                          {/* #region agent log */}
+                          {(() => {
+                            fetch(
+                              "http://127.0.0.1:7242/ingest/968d187c-a049-4e90-98da-550ce5ae9fdb",
+                              {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({
+                                  location: "ProductWorkspace.tsx:756",
+                                  message: "Rendering CostView component",
+                                  data: {
+                                    productId: selectedProductId,
+                                    moduleId: selectedModuleId,
+                                  },
+                                  timestamp: Date.now(),
+                                  sessionId: "debug-session",
+                                  runId: "run1",
+                                  hypothesisId: "C",
+                                }),
+                              }
+                            ).catch(() => {});
+                            return null;
+                          })()}
+                          {/* #endregion */}
+                          <CostView
+                            productId={selectedProductId}
+                            moduleId={selectedModuleId || undefined}
+                          />
+                        </>
+                      )}
+                    </div>
+                  </TabsContent>
                 );
               })}
-            </div>
-
-            {/* Quick Actions */}
-            <Card className="mt-6">
-              <CardHeader>
-                <CardTitle>Quick Actions</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid gap-3 md:grid-cols-3">
-                  {!getStepStatus('strategy').completed && (
-                    <Button
-                      variant="outline"
-                      className="justify-start"
-                      onClick={() => setActiveStep('strategy')}
-                    >
-                      <Target className="mr-2 h-4 w-4" />
-                      Start with Strategy
-                    </Button>
-                  )}
-                  {!getStepStatus('discovery').completed && (
-                    <Button
-                      variant="outline"
-                      className="justify-start"
-                      onClick={() => setActiveStep('discovery')}
-                    >
-                      <Lightbulb className="mr-2 h-4 w-4" />
-                      Gather Customer Insights
-                    </Button>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          </>
-        ) : (
-          <>
-            {/* Step Header */}
-            <div className="mb-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="text-3xl font-bold">
-                    {workflowSteps.find(s => s.id === activeStep)?.title}
-                  </h2>
-                  <p className="text-muted-foreground mt-1">
-                    {workflowSteps.find(s => s.id === activeStep)?.description}
-                  </p>
-                </div>
-                {(() => {
-                  const currentIndex = workflowSteps.findIndex(s => s.id === activeStep);
-                  const hasNext = currentIndex >= 0 && currentIndex < workflowSteps.length - 1;
-                  return hasNext && (
-                    <Button
-                      onClick={() => {
-                        setActiveStep(workflowSteps[currentIndex + 1].id);
-                      }}
-                    >
-                      Next Step <ArrowRight className="ml-2 h-4 w-4" />
-                    </Button>
-                  );
-                })()}
-              </div>
-            </div>
-
-            {/* Step Content */}
-            <div className="space-y-6">
-              {activeStep === 'strategy' && selectedProductId && (
-                <StrategyView 
-                  productId={selectedProductId} 
-                  moduleId={selectedModuleId || undefined}
-                  moduleName={selectedModule?.name}
-                />
-              )}
-              {activeStep === 'discovery' && selectedProductId && (
-                <div className="space-y-6">
-                  <ProblemInsightView productId={selectedProductId} moduleId={selectedModuleId || undefined} />
-                  <ProblemList productId={selectedProductId} moduleId={selectedModuleId || undefined} />
-                </div>
-              )}
-              {activeStep === 'execution' && selectedProductId && (
-                <ExecutionView 
-                  productId={selectedProductId} 
-                  moduleId={selectedModuleId || undefined}
-                  tasks={tasks}
-                  onUpdate={loadProductData}
-                />
-              )}
-              {activeStep === 'stakeholders' && selectedProductId && (
-                <StakeholderList productId={selectedProductId} moduleId={selectedModuleId || undefined} />
-              )}
-              {activeStep === 'metrics' && selectedProductId && (
-                <MetricsView 
-                  productId={selectedProductId} 
-                  moduleId={selectedModuleId || undefined}
-                />
-              )}
-              {activeStep === 'cost' && selectedProductId && (
-                <CostView 
-                  productId={selectedProductId} 
-                  moduleId={selectedModuleId || undefined}
-                />
-              )}
-            </div>
+            </Tabs>
           </>
         )}
       </div>
@@ -754,7 +1060,7 @@ export default function ProductWorkspace({ onUpdate }: ProductWorkspaceProps) {
           setShowModuleModal(false);
           setEditingModule(null);
         }}
-        title={editingModule ? 'Edit Module' : 'Create Module'}
+        title={editingModule ? "Edit Module" : "Create Module"}
       >
         <ModuleForm
           module={editingModule}
@@ -771,7 +1077,7 @@ export default function ProductWorkspace({ onUpdate }: ProductWorkspaceProps) {
       <Modal
         isOpen={showCreateProductModal}
         onClose={() => {
-          console.log('Create Product modal close clicked');
+          console.log("Create Product modal close clicked");
           setShowCreateProductModal(false);
         }}
         title="Create Product"
@@ -779,13 +1085,13 @@ export default function ProductWorkspace({ onUpdate }: ProductWorkspaceProps) {
         {showCreateProductModal && (
           <ProductForm
             onSuccess={() => {
-              console.log('Product created successfully from ProductWorkspace');
+              console.log("Product created successfully from ProductWorkspace");
               setShowCreateProductModal(false);
               loadProducts();
               if (onUpdate) onUpdate();
             }}
             onCancel={() => {
-              console.log('Product form cancelled from ProductWorkspace');
+              console.log("Product form cancelled from ProductWorkspace");
               setShowCreateProductModal(false);
             }}
           />
@@ -794,4 +1100,3 @@ export default function ProductWorkspace({ onUpdate }: ProductWorkspaceProps) {
     </div>
   );
 }
-

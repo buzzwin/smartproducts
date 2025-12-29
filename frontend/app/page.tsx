@@ -37,11 +37,26 @@ export default function Home() {
   const [managementSubTab, setManagementSubTab] = useState<
     "products" | "modules" | "features" | "resources" | "tasks" | "stakeholders"
   >("products");
-  const [selectedProductForStakeholders, setSelectedProductForStakeholders] = useState<string | null>(null);
+  const [selectedProductForStakeholders, setSelectedProductForStakeholders] =
+    useState<string | null>(null);
   const [costItems, setCostItems] = useState<CostItem[]>([]);
 
   useEffect(() => {
     loadData();
+  }, []);
+
+  // Listen for navigation events from forms
+  useEffect(() => {
+    const handleNavigateToModules = (event: Event) => {
+      const customEvent = event as CustomEvent<{ productId?: string }>;
+      setActiveTab("management");
+      setManagementSubTab("modules");
+    };
+
+    window.addEventListener("navigateToModules", handleNavigateToModules);
+    return () => {
+      window.removeEventListener("navigateToModules", handleNavigateToModules);
+    };
   }, []);
 
   const loadData = async () => {
@@ -171,167 +186,169 @@ export default function Home() {
       <SignedIn>
         <>
           {/* Primary Navigation */}
-            <div className="flex gap-2 mb-5 border-b-2 border-border">
+          <div className="flex gap-2 mb-5 border-b-2 border-border">
+            <Button
+              type="button"
+              onClick={() => setActiveTab("workspace")}
+              variant={activeTab === "workspace" ? "default" : "ghost"}
+              className={`rounded-b-none border-b-2 ${
+                activeTab === "workspace"
+                  ? "border-primary"
+                  : "border-transparent"
+              }`}
+            >
+              Workspace
+            </Button>
+            <div className="flex-1" />
+            <Button
+              type="button"
+              onClick={() => setActiveTab("management")}
+              variant={activeTab === "management" ? "secondary" : "ghost"}
+              className={`rounded-b-none border-b-2 ${
+                activeTab === "management"
+                  ? "border-secondary"
+                  : "border-transparent"
+              }`}
+            >
+              Management
+            </Button>
+          </div>
+
+          {/* Sub-navigation for Management */}
+          {activeTab === "management" && (
+            <div className="flex gap-2 mb-5 p-2.5 bg-muted rounded-lg flex-wrap">
               <Button
                 type="button"
-                onClick={() => setActiveTab("workspace")}
-                variant={activeTab === "workspace" ? "default" : "ghost"}
-                className={`rounded-b-none border-b-2 ${
-                  activeTab === "workspace"
-                    ? "border-primary"
-                    : "border-transparent"
-                }`}
+                onClick={() => setManagementSubTab("products")}
+                variant={
+                  managementSubTab === "products" ? "secondary" : "outline"
+                }
+                size="sm"
               >
-                Workspace
+                Products
               </Button>
-              <div className="flex-1" />
               <Button
                 type="button"
-                onClick={() => setActiveTab("management")}
-                variant={activeTab === "management" ? "secondary" : "ghost"}
-                className={`rounded-b-none border-b-2 ${
-                  activeTab === "management"
-                    ? "border-secondary"
-                    : "border-transparent"
-                }`}
+                onClick={() => setManagementSubTab("modules")}
+                variant={
+                  managementSubTab === "modules" ? "secondary" : "outline"
+                }
+                size="sm"
               >
-                Management
+                Modules
+              </Button>
+              <Button
+                type="button"
+                onClick={() => setManagementSubTab("features")}
+                variant={
+                  managementSubTab === "features" ? "secondary" : "outline"
+                }
+                size="sm"
+              >
+                Features
+              </Button>
+              <Button
+                type="button"
+                onClick={() => setManagementSubTab("resources")}
+                variant={
+                  managementSubTab === "resources" ? "secondary" : "outline"
+                }
+                size="sm"
+              >
+                Resources
+              </Button>
+              <Button
+                type="button"
+                onClick={() => setManagementSubTab("tasks")}
+                variant={managementSubTab === "tasks" ? "secondary" : "outline"}
+                size="sm"
+              >
+                Tasks
+              </Button>
+              <Button
+                type="button"
+                onClick={() => setManagementSubTab("stakeholders")}
+                variant={
+                  managementSubTab === "stakeholders" ? "secondary" : "outline"
+                }
+                size="sm"
+              >
+                Stakeholders
               </Button>
             </div>
+          )}
 
-            {/* Sub-navigation for Management */}
-            {activeTab === "management" && (
-              <div className="flex gap-2 mb-5 p-2.5 bg-muted rounded-lg flex-wrap">
-                <Button
-                  type="button"
-                  onClick={() => setManagementSubTab("products")}
-                  variant={
-                    managementSubTab === "products" ? "secondary" : "outline"
-                  }
-                  size="sm"
-                >
-                  Products
-                </Button>
-                <Button
-                  type="button"
-                  onClick={() => setManagementSubTab("modules")}
-                  variant={
-                    managementSubTab === "modules" ? "secondary" : "outline"
-                  }
-                  size="sm"
-                >
-                  Modules
-                </Button>
-                <Button
-                  type="button"
-                  onClick={() => setManagementSubTab("features")}
-                  variant={
-                    managementSubTab === "features" ? "secondary" : "outline"
-                  }
-                  size="sm"
-                >
-                  Features
-                </Button>
-                <Button
-                  type="button"
-                  onClick={() => setManagementSubTab("resources")}
-                  variant={
-                    managementSubTab === "resources" ? "secondary" : "outline"
-                  }
-                  size="sm"
-                >
-                  Resources
-                </Button>
-                <Button
-                  type="button"
-                  onClick={() => setManagementSubTab("tasks")}
-                  variant={
-                    managementSubTab === "tasks" ? "secondary" : "outline"
-                  }
-                  size="sm"
-                >
-                  Tasks
-                </Button>
-                <Button
-                  type="button"
-                  onClick={() => setManagementSubTab("stakeholders")}
-                  variant={
-                    managementSubTab === "stakeholders" ? "secondary" : "outline"
-                  }
-                  size="sm"
-                >
-                  Stakeholders
-                </Button>
-              </div>
-            )}
+          {/* Main Content */}
+          {activeTab === "workspace" && (
+            <ProductWorkspace onUpdate={loadData} />
+          )}
 
-            {/* Main Content */}
-            {activeTab === "workspace" && (
-              <ProductWorkspace onUpdate={loadData} />
-            )}
+          {activeTab === "management" && (
+            <>
+              {managementSubTab === "products" && (
+                <ProductList products={products} onUpdate={loadData} />
+              )}
 
-            {activeTab === "management" && (
-              <>
-                {managementSubTab === "products" && (
-                  <ProductList products={products} onUpdate={loadData} />
-                )}
+              {managementSubTab === "modules" && (
+                <ModuleList onUpdate={loadData} />
+              )}
 
-                {managementSubTab === "modules" && (
-                  <ModuleList onUpdate={loadData} />
-                )}
+              {managementSubTab === "features" && (
+                <FeatureList onUpdate={loadData} />
+              )}
 
-                {managementSubTab === "features" && (
-                  <FeatureList onUpdate={loadData} />
-                )}
+              {managementSubTab === "resources" && (
+                <ResourceList onUpdate={loadData} />
+              )}
 
-                {managementSubTab === "resources" && (
-                  <ResourceList onUpdate={loadData} />
-                )}
+              {managementSubTab === "tasks" && <TaskList onUpdate={loadData} />}
 
-                {managementSubTab === "tasks" && (
-                  <TaskList onUpdate={loadData} />
-                )}
-
-                {managementSubTab === "stakeholders" && (
-                  <div className="space-y-4">
-                    {products.length === 0 ? (
-                      <div className="text-center py-8 text-muted-foreground">
-                        No products available. Create a product first to manage stakeholders.
-                      </div>
-                    ) : (
-                      <>
-                        <div className="mb-4">
-                          <Label htmlFor="product-select" className="block mb-2">
-                            Select Product
-                          </Label>
-                          <Select
-                            value={selectedProductForStakeholders || ""}
-                            onValueChange={(value) => setSelectedProductForStakeholders(value || null)}
+              {managementSubTab === "stakeholders" && (
+                <div className="space-y-4">
+                  {products.length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground">
+                      No products available. Create a product first to manage
+                      stakeholders.
+                    </div>
+                  ) : (
+                    <>
+                      <div className="mb-4">
+                        <Label htmlFor="product-select" className="block mb-2">
+                          Select Product
+                        </Label>
+                        <Select
+                          value={selectedProductForStakeholders || ""}
+                          onValueChange={(value) =>
+                            setSelectedProductForStakeholders(value || null)
+                          }
+                        >
+                          <SelectTrigger
+                            id="product-select"
+                            className="w-full max-w-md"
                           >
-                            <SelectTrigger id="product-select" className="w-full max-w-md">
-                              <SelectValue placeholder="Select a product to view stakeholders" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {products.map((product) => (
-                                <SelectItem key={product.id} value={product.id}>
-                                  {product.name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        {selectedProductForStakeholders && (
-                          <StakeholderList
-                            productId={selectedProductForStakeholders}
-                            onUpdate={loadData}
-                          />
-                        )}
-                      </>
-                    )}
-                  </div>
-                )}
-              </>
-            )}
+                            <SelectValue placeholder="Select a product to view stakeholders" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {products.map((product) => (
+                              <SelectItem key={product.id} value={product.id}>
+                                {product.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      {selectedProductForStakeholders && (
+                        <StakeholderList
+                          productId={selectedProductForStakeholders}
+                          onUpdate={loadData}
+                        />
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
+            </>
+          )}
         </>
       </SignedIn>
     </div>

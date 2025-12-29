@@ -12,24 +12,34 @@ import {
 interface ProgressTrackingProps {
   productId: string;
   moduleId?: string;
+  tasks?: Task[]; // Optional: if provided, use these tasks instead of loading
 }
 
-export default function ProgressTracking({ productId, moduleId }: ProgressTrackingProps) {
+export default function ProgressTracking({ productId, moduleId, tasks: providedTasks }: ProgressTrackingProps) {
   const [tasks, setTasks] = useState<Task[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!providedTasks);
 
   useEffect(() => {
-    loadTasks();
-  }, [productId, moduleId]);
+    if (providedTasks) {
+      setTasks(providedTasks);
+      setLoading(false);
+    } else {
+      loadTasks();
+    }
+  }, [productId, moduleId, providedTasks]);
 
   const loadTasks = async () => {
     try {
-      const params: { product_id: string; module_id?: string } = { product_id: productId };
-      if (moduleId) params.module_id = moduleId;
+      setLoading(true);
+      // Get ALL tasks for the product - we'll filter by module client-side if needed
+      // Note: Backend's get_by_product_or_module with module_id=None only returns tasks without module_id
+      // So we need to get all tasks and filter client-side, or use get_by_product if available
+      const params: { product_id: string } = { product_id: productId };
       const data = await tasksAPI.getAll(params);
       setTasks(data);
     } catch (err) {
       console.error('Failed to load tasks:', err);
+      setTasks([]);
     } finally {
       setLoading(false);
     }

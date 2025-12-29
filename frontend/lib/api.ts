@@ -20,7 +20,24 @@ export async function fetchAPI<T>(endpoint: string, options?: RequestInit): Prom
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({ detail: 'An error occurred' }));
-      throw new Error(error.detail || `HTTP error! status: ${response.status}`);
+      
+      // Handle FastAPI validation errors (422)
+      if (response.status === 422 && Array.isArray(error.detail)) {
+        const validationErrors = error.detail
+          .map((e: any) => {
+            const field = e.loc?.slice(1).join('.') || 'unknown';
+            return `${field}: ${e.msg}`;
+          })
+          .join(', ');
+        throw new Error(`Validation error: ${validationErrors}`);
+      }
+      
+      // Handle other error formats
+      if (error.detail) {
+        throw new Error(typeof error.detail === 'string' ? error.detail : JSON.stringify(error.detail));
+      }
+      
+      throw new Error(`HTTP error! status: ${response.status}`);
     }
 
     return response.json();
@@ -739,56 +756,56 @@ export const unifiedCostsAPI = {
     if (params?.cost_classification) query.append('cost_classification', params.cost_classification);
     const queryString = query.toString();
     return fetchAPI<import('../types').Cost[]>(
-      `/api/costs${queryString ? `?${queryString}` : ''}`
+      `/api/unified-costs${queryString ? `?${queryString}` : ''}`
     );
   },
   getByProduct: (productId: string) =>
-    fetchAPI<import('../types').Cost[]>(`/api/costs?product_id=${productId}`),
+    fetchAPI<import('../types').Cost[]>(`/api/unified-costs?product_id=${productId}`),
   getByModule: (productId: string, moduleId: string) =>
-    fetchAPI<import('../types').Cost[]>(`/api/costs?product_id=${productId}&module_id=${moduleId}`),
-  getById: (id: string) => fetchAPI<import('../types').Cost>(`/api/costs/${id}`),
+    fetchAPI<import('../types').Cost[]>(`/api/unified-costs?product_id=${productId}&module_id=${moduleId}`),
+  getById: (id: string) => fetchAPI<import('../types').Cost>(`/api/unified-costs/${id}`),
   getSharedCosts: (productId: string) =>
-    fetchAPI<import('../types').Cost[]>(`/api/costs/product/${productId}/shared`),
+    fetchAPI<import('../types').Cost[]>(`/api/unified-costs/product/${productId}/shared`),
   getTaskCosts: (productId: string, moduleId?: string, featureId?: string, costClassification?: 'run' | 'change') => {
     const query = new URLSearchParams();
     if (moduleId) query.append('module_id', moduleId);
     if (featureId) query.append('feature_id', featureId);
     if (costClassification) query.append('cost_classification', costClassification);
     const queryString = query.toString();
-    return fetchAPI<any[]>(`/api/costs/product/${productId}/task-costs${queryString ? `?${queryString}` : ''}`);
+    return fetchAPI<any[]>(`/api/unified-costs/product/${productId}/task-costs${queryString ? `?${queryString}` : ''}`);
   },
   getFeatureCosts: (productId: string, moduleId?: string, costClassification?: 'run' | 'change') => {
     const query = new URLSearchParams();
     if (moduleId) query.append('module_id', moduleId);
     if (costClassification) query.append('cost_classification', costClassification);
     const queryString = query.toString();
-    return fetchAPI<any[]>(`/api/costs/product/${productId}/feature-costs${queryString ? `?${queryString}` : ''}`);
+    return fetchAPI<any[]>(`/api/unified-costs/product/${productId}/feature-costs${queryString ? `?${queryString}` : ''}`);
   },
   getResourceCosts: (productId: string, moduleId?: string, costClassification?: 'run' | 'change') => {
     const query = new URLSearchParams();
     if (moduleId) query.append('module_id', moduleId);
     if (costClassification) query.append('cost_classification', costClassification);
     const queryString = query.toString();
-    return fetchAPI<any>(`/api/costs/product/${productId}/resource-costs${queryString ? `?${queryString}` : ''}`);
+    return fetchAPI<any>(`/api/unified-costs/product/${productId}/resource-costs${queryString ? `?${queryString}` : ''}`);
   },
   getClassificationSummary: (productId: string, moduleId?: string) => {
     const query = new URLSearchParams();
     if (moduleId) query.append('module_id', moduleId);
     const queryString = query.toString();
-    return fetchAPI<any>(`/api/costs/product/${productId}/classification-summary${queryString ? `?${queryString}` : ''}`);
+    return fetchAPI<any>(`/api/unified-costs/product/${productId}/classification-summary${queryString ? `?${queryString}` : ''}`);
   },
   create: (cost: Omit<import('../types').Cost, 'id' | 'created_at' | 'updated_at'>) =>
-    fetchAPI<import('../types').Cost>('/api/costs', {
+    fetchAPI<import('../types').Cost>('/api/unified-costs', {
       method: 'POST',
       body: JSON.stringify(cost),
     }),
   update: (id: string, cost: Partial<import('../types').Cost>) =>
-    fetchAPI<import('../types').Cost>(`/api/costs/${id}`, {
+    fetchAPI<import('../types').Cost>(`/api/unified-costs/${id}`, {
       method: 'PUT',
       body: JSON.stringify(cost),
     }),
   delete: (id: string) =>
-    fetchAPI<void>(`/api/costs/${id}`, { method: 'DELETE' }),
+    fetchAPI<void>(`/api/unified-costs/${id}`, { method: 'DELETE' }),
 };
 
 // Revenue Models API
@@ -920,8 +937,11 @@ export const modulesAPI = {
     );
   },
   getById: (id: string) => fetchAPI<import('../types').Module>(`/api/modules/${id}`),
-  getByProduct: (productId: string) =>
-    fetchAPI<import('../types').Module[]>(`/api/modules?product_id=${productId}`),
+  getByProduct: (productId: string) => {
+    // Add cache-busting timestamp to prevent stale data
+    const timestamp = Date.now();
+    return fetchAPI<import('../types').Module[]>(`/api/modules?product_id=${productId}&_t=${timestamp}`);
+  },
   getByOwner: (ownerId: string) =>
     fetchAPI<import('../types').Module[]>(`/api/modules?owner_id=${ownerId}`),
   getDefault: (productId: string) =>

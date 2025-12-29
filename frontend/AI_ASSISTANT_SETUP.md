@@ -64,12 +64,12 @@ The AI Assistant button appears in all form modals throughout the application:
 - "A mobile app for iOS and Android with real-time sync"
 
 **Feature:**
-- "Create a feature for OAuth 2.0 login, high priority, estimated 40 hours, high impact"
-- "User authentication with social login, medium priority, 20 hours effort"
+- "Create a feature for OAuth 2.0 login, high priority, high impact"
+- "User authentication with social login, medium priority"
 
 **Task:**
 - "Create a task to implement payment processing, due in 2 weeks, high priority"
-- "Design the checkout UI, estimated 20 hours, assign to design team"
+- "Design the checkout UI, assign to design team"
 
 **Strategy:**
 - "Create a vision document for becoming the leading e-commerce platform"

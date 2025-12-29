@@ -310,6 +310,37 @@ Fields: name (string), amount (number), currency (string, default USD), descript
 Context: ${JSON.stringify(context || {})}
 Return JSON: { "name": "...", "amount": ..., "currency": "USD", "description": "..." }`;
 
+    case 'cost': {
+      const scopeOptions = formatFieldOptions('scope', fieldOptions?.scope);
+      const categoryOptions = formatFieldOptions('category', fieldOptions?.category);
+      const costTypeOptions = formatFieldOptions('cost_type', fieldOptions?.cost_type);
+      const recurrenceOptions = formatFieldOptions('recurrence', fieldOptions?.recurrence);
+      const classificationOptions = formatFieldOptions('cost_classification', fieldOptions?.cost_classification);
+      
+      return `${basePrompt}
+Form type: Cost${scopeOptions}${categoryOptions}${costTypeOptions}${recurrenceOptions}${classificationOptions}
+Fields: 
+- name (string, required): Name of the cost item
+- scope (string, required): One of: product, module, feature, resource, hardware, software, database, consulting
+- category (string, required): One of: build, run, maintain, scale, overhead
+- cost_type (string, required): One of: labor, infra, license, vendor, other
+- amount (number, required): Cost amount
+- currency (string, default "USD"): Currency code
+- recurrence (string, required): One of: one-time, monthly, quarterly, annual
+- cost_classification (string, optional): One of: run (Run/KTLO), change (Change/Growth)
+- description (string, optional): Description of the cost
+- amortization_period (number, optional): Amortization period in months (for one-time costs)
+Context: ${JSON.stringify(context || {})}
+Return JSON: { "name": "...", "scope": "...", "category": "...", "cost_type": "...", "amount": ..., "currency": "USD", "recurrence": "...", "cost_classification": "...", "description": "...", "amortization_period": ... }
+IMPORTANT: 
+- Determine the most appropriate "scope" based on the user's description (product-level, module-specific, feature-specific, etc.)
+- Determine the most appropriate "category" (build for new development, run for ongoing operations, etc.)
+- Determine the most appropriate "cost_type" (labor for people costs, infra for infrastructure, etc.)
+- Determine the most appropriate "recurrence" (one-time for one-time costs, monthly/quarterly/annual for recurring)
+- If the cost is for ongoing operations/maintenance, use cost_classification "run"
+- If the cost is for new feature development, use cost_classification "change"`;
+    }
+
     default:
       return `${basePrompt}
 Form type: ${formType}

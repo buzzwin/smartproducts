@@ -225,7 +225,7 @@ export default function AIAssistant({
                     Describe what you want to create
                   </label>
                   <textarea
-                    placeholder="Example: Create a feature for user authentication with OAuth 2.0, high priority, estimated 40 hours..."
+                    placeholder="Describe what you want to create..."
                     value={prompt}
                     onChange={(e) => setPrompt(e.target.value)}
                     onKeyDown={(e) => {

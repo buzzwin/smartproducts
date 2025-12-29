@@ -9,10 +9,22 @@ import Modal from './Modal';
 interface TaskListProps {
   productId?: string; // Optional - if provided, pre-filter tasks by this product
   moduleId?: string; // Optional - if provided, pre-filter tasks by this module
+  initialFilterModuleId?: string; // Optional - initial module filter from parent
+  initialFilterStatus?: string; // Optional - initial status filter from parent
+  initialFilterAssigneeId?: string; // Optional - initial assignee filter from parent
+  hideFilters?: boolean; // Optional - hide filter UI when filters are managed by parent
   onUpdate?: () => void;
 }
 
-export default function TaskList({ productId, moduleId, onUpdate }: TaskListProps) {
+export default function TaskList({ 
+  productId, 
+  moduleId, 
+  initialFilterModuleId,
+  initialFilterStatus,
+  initialFilterAssigneeId,
+  hideFilters = false,
+  onUpdate 
+}: TaskListProps) {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [resources, setResources] = useState<Resource[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
@@ -25,15 +37,34 @@ export default function TaskList({ productId, moduleId, onUpdate }: TaskListProp
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [filterModuleId, setFilterModuleId] = useState<string>(moduleId || '');
-  const [filterStatus, setFilterStatus] = useState<string>('');
-  const [filterAssigneeId, setFilterAssigneeId] = useState<string>('');
+  const [filterModuleId, setFilterModuleId] = useState<string>(initialFilterModuleId || moduleId || '');
+  const [filterStatus, setFilterStatus] = useState<string>(initialFilterStatus || '');
+  const [filterAssigneeId, setFilterAssigneeId] = useState<string>(initialFilterAssigneeId || '');
 
   useEffect(() => {
     if (moduleId && !filterModuleId) {
       setFilterModuleId(moduleId);
     }
   }, [moduleId]);
+
+  // Sync filters with parent component
+  useEffect(() => {
+    if (initialFilterModuleId !== undefined) {
+      setFilterModuleId(initialFilterModuleId);
+    }
+  }, [initialFilterModuleId]);
+
+  useEffect(() => {
+    if (initialFilterStatus !== undefined) {
+      setFilterStatus(initialFilterStatus);
+    }
+  }, [initialFilterStatus]);
+
+  useEffect(() => {
+    if (initialFilterAssigneeId !== undefined) {
+      setFilterAssigneeId(initialFilterAssigneeId);
+    }
+  }, [initialFilterAssigneeId]);
 
   useEffect(() => {
     loadData();
@@ -185,76 +216,78 @@ export default function TaskList({ productId, moduleId, onUpdate }: TaskListProp
         </button>
       </div>
 
-      <div style={{ display: 'flex', gap: '12px', marginBottom: '20px', flexWrap: 'wrap' }}>
-        <div style={{ flex: 1, minWidth: '200px' }}>
-          <label style={{ display: 'block', marginBottom: '4px', fontSize: '13px', fontWeight: 500 }}>
-            Filter by Module
-          </label>
-          <select
-            value={filterModuleId}
-            onChange={(e) => setFilterModuleId(e.target.value)}
-            style={{
-              width: '100%',
-              padding: '6px 12px',
-              fontSize: '14px',
-              border: '1px solid #ddd',
-              borderRadius: '4px',
-            }}
-          >
-            <option value="">All Modules</option>
-            {modules.map((module) => (
-              <option key={module.id} value={module.id}>
-                {module.name}
-              </option>
-            ))}
-          </select>
+      {!hideFilters && (
+        <div style={{ display: 'flex', gap: '12px', marginBottom: '20px', flexWrap: 'wrap' }}>
+          <div style={{ flex: 1, minWidth: '200px' }}>
+            <label style={{ display: 'block', marginBottom: '4px', fontSize: '13px', fontWeight: 500 }}>
+              Filter by Module
+            </label>
+            <select
+              value={filterModuleId}
+              onChange={(e) => setFilterModuleId(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '6px 12px',
+                fontSize: '14px',
+                border: '1px solid #ddd',
+                borderRadius: '4px',
+              }}
+            >
+              <option value="">All Modules</option>
+              {modules.map((module) => (
+                <option key={module.id} value={module.id}>
+                  {module.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div style={{ flex: 1, minWidth: '200px' }}>
+            <label style={{ display: 'block', marginBottom: '4px', fontSize: '13px', fontWeight: 500 }}>
+              Filter by Status
+            </label>
+            <select
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '6px 12px',
+                fontSize: '14px',
+                border: '1px solid #ddd',
+                borderRadius: '4px',
+              }}
+            >
+              <option value="">All Statuses</option>
+              <option value="todo">To Do</option>
+              <option value="in_progress">In Progress</option>
+              <option value="blocked">Blocked</option>
+              <option value="done">Done</option>
+            </select>
+          </div>
+          <div style={{ flex: 1, minWidth: '200px' }}>
+            <label style={{ display: 'block', marginBottom: '4px', fontSize: '13px', fontWeight: 500 }}>
+              Filter by Assignee
+            </label>
+            <select
+              value={filterAssigneeId}
+              onChange={(e) => setFilterAssigneeId(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '6px 12px',
+                fontSize: '14px',
+                border: '1px solid #ddd',
+                borderRadius: '4px',
+              }}
+            >
+              <option value="">All Assignees</option>
+              {resources.map((resource) => (
+                <option key={resource.id} value={resource.id}>
+                  {resource.name}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
-        <div style={{ flex: 1, minWidth: '200px' }}>
-          <label style={{ display: 'block', marginBottom: '4px', fontSize: '13px', fontWeight: 500 }}>
-            Filter by Status
-          </label>
-          <select
-            value={filterStatus}
-            onChange={(e) => setFilterStatus(e.target.value)}
-            style={{
-              width: '100%',
-              padding: '6px 12px',
-              fontSize: '14px',
-              border: '1px solid #ddd',
-              borderRadius: '4px',
-            }}
-          >
-            <option value="">All Statuses</option>
-            <option value="todo">To Do</option>
-            <option value="in_progress">In Progress</option>
-            <option value="blocked">Blocked</option>
-            <option value="done">Done</option>
-          </select>
-        </div>
-        <div style={{ flex: 1, minWidth: '200px' }}>
-          <label style={{ display: 'block', marginBottom: '4px', fontSize: '13px', fontWeight: 500 }}>
-            Filter by Assignee
-          </label>
-          <select
-            value={filterAssigneeId}
-            onChange={(e) => setFilterAssigneeId(e.target.value)}
-            style={{
-              width: '100%',
-              padding: '6px 12px',
-              fontSize: '14px',
-              border: '1px solid #ddd',
-              borderRadius: '4px',
-            }}
-          >
-            <option value="">All Assignees</option>
-            {resources.map((resource) => (
-              <option key={resource.id} value={resource.id}>
-                {resource.name}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
+      )}
 
       {tasks.length === 0 ? (
         <p style={{ color: '#666', textAlign: 'center', padding: '20px' }}>
