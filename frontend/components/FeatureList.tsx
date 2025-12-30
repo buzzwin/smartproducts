@@ -1,33 +1,66 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import { featuresAPI, productsAPI, resourcesAPI } from '@/lib/api';
-import type { Feature, Product, Resource } from '@/types';
-import FeatureForm from './FeatureForm';
-import Modal from './Modal';
+import { useState, useEffect } from "react";
+import { featuresAPI, productsAPI, resourcesAPI, modulesAPI } from "@/lib/api";
+import type { Feature, Product, Resource, Module } from "@/types";
+import FeatureForm from "./FeatureForm";
+import Modal from "./Modal";
+import DrawIORenderer from "./diagrams/DrawIORenderer";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
+import { Image } from "lucide-react";
 
 interface FeatureListProps {
   product?: Product;
   productId?: string;
+  moduleId?: string;
   onUpdate?: () => void;
 }
 
-export default function FeatureList({ product, productId, onUpdate }: FeatureListProps) {
+export default function FeatureList({
+  product,
+  productId,
+  moduleId,
+  onUpdate,
+}: FeatureListProps) {
   const [features, setFeatures] = useState<Feature[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
+  const [modules, setModules] = useState<Module[]>([]);
   const [resources, setResources] = useState<Resource[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [editingFeature, setEditingFeature] = useState<Feature | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [filterProductId, setFilterProductId] = useState<string | ''>(productId || product?.id || '');
+  const [viewingDiagramFeature, setViewingDiagramFeature] =
+    useState<Feature | null>(null);
+  const [filterProductId, setFilterProductId] = useState<string | "">(
+    productId || product?.id || ""
+  );
+  const [filterModuleId, setFilterModuleId] = useState<string | "">(
+    moduleId || ""
+  );
 
   // Create a map of resource IDs to resource names
   const resourceMap = new Map<string, Resource>();
-  resources.forEach(resource => {
+  resources.forEach((resource) => {
     resourceMap.set(resource.id, resource);
   });
+
+  useEffect(() => {
+    if (filterProductId) {
+      loadModules();
+    } else {
+      setModules([]);
+      setFilterModuleId("");
+    }
+  }, [filterProductId]);
 
   useEffect(() => {
     loadFeatures();
@@ -35,14 +68,28 @@ export default function FeatureList({ product, productId, onUpdate }: FeatureLis
     if (!product) {
       loadProducts();
     }
-  }, [product?.id, productId, filterProductId]);
+  }, [product?.id, productId, filterProductId, filterModuleId]);
 
   const loadProducts = async () => {
     try {
       const data = await productsAPI.getAll();
       setProducts(data);
     } catch (err) {
-      console.error('Failed to load products:', err);
+      console.error("Failed to load products:", err);
+    }
+  };
+
+  const loadModules = async () => {
+    if (!filterProductId) {
+      setModules([]);
+      return;
+    }
+    try {
+      const data = await modulesAPI.getByProduct(filterProductId);
+      setModules(data);
+    } catch (err) {
+      console.error("Failed to load modules:", err);
+      setModules([]);
     }
   };
 
@@ -51,7 +98,7 @@ export default function FeatureList({ product, productId, onUpdate }: FeatureLis
       const data = await resourcesAPI.getAll();
       setResources(data || []);
     } catch (err) {
-      console.error('Failed to load resources:', err);
+      console.error("Failed to load resources:", err);
       setResources([]);
     }
   };
@@ -68,17 +115,22 @@ export default function FeatureList({ product, productId, onUpdate }: FeatureLis
       } else if (product?.id) {
         params.product_id = product.id;
       }
+      if (filterModuleId) {
+        params.module_id = filterModuleId;
+      } else if (moduleId) {
+        params.module_id = moduleId;
+      }
       const data = await featuresAPI.getAll(params);
       setFeatures(data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load features');
+      setError(err instanceof Error ? err.message : "Failed to load features");
     } finally {
       setLoading(false);
     }
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this feature?')) {
+    if (!confirm("Are you sure you want to delete this feature?")) {
       return;
     }
 
@@ -88,7 +140,7 @@ export default function FeatureList({ product, productId, onUpdate }: FeatureLis
       await loadFeatures();
       if (onUpdate) onUpdate();
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to delete feature');
+      alert(err instanceof Error ? err.message : "Failed to delete feature");
     } finally {
       setDeletingId(null);
     }
@@ -110,24 +162,34 @@ export default function FeatureList({ product, productId, onUpdate }: FeatureLis
     );
   }
 
-  const currentProduct = product || products.find(p => p.id === filterProductId);
+  const currentProduct =
+    product || products.find((p) => p.id === filterProductId);
 
   return (
     <div className="card">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
-        <h2 style={{ margin: 0, fontSize: '24px' }}>
-          {currentProduct ? `Features - ${currentProduct.name}` : 'Features'}
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          marginBottom: "20px",
+          flexWrap: "wrap",
+          gap: "12px",
+        }}
+      >
+        <h2 style={{ margin: 0, fontSize: "24px" }}>
+          {currentProduct ? `Features - ${currentProduct.name}` : "Features"}
         </h2>
-        <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+        <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
           {!product && (
             <select
               value={filterProductId}
               onChange={(e) => setFilterProductId(e.target.value)}
               style={{
-                padding: '8px 12px',
-                fontSize: '14px',
-                border: '1px solid #ddd',
-                borderRadius: '4px',
+                padding: "8px 12px",
+                fontSize: "14px",
+                border: "1px solid #ddd",
+                borderRadius: "4px",
               }}
             >
               <option value="">All Products</option>
@@ -142,16 +204,22 @@ export default function FeatureList({ product, productId, onUpdate }: FeatureLis
             onClick={() => setShowCreateModal(true)}
             disabled={!currentProduct && !filterProductId}
             style={{
-              padding: '8px 16px',
-              fontSize: '14px',
-              backgroundColor: (!currentProduct && !filterProductId) ? '#ccc' : '#28a745',
-              color: '#fff',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: (!currentProduct && !filterProductId) ? 'not-allowed' : 'pointer',
+              padding: "8px 16px",
+              fontSize: "14px",
+              backgroundColor:
+                !currentProduct && !filterProductId ? "#ccc" : "#28a745",
+              color: "#fff",
+              border: "none",
+              borderRadius: "4px",
+              cursor:
+                !currentProduct && !filterProductId ? "not-allowed" : "pointer",
               fontWeight: 500,
             }}
-            title={(!currentProduct && !filterProductId) ? 'Please select a product first' : ''}
+            title={
+              !currentProduct && !filterProductId
+                ? "Please select a product first"
+                : ""
+            }
           >
             + Add Feature
           </button>
@@ -159,12 +227,12 @@ export default function FeatureList({ product, productId, onUpdate }: FeatureLis
       </div>
 
       {features.length === 0 ? (
-        <p style={{ color: '#666', textAlign: 'center', padding: '20px' }}>
-          {currentProduct 
+        <p style={{ color: "#666", textAlign: "center", padding: "20px" }}>
+          {currentProduct
             ? `No features yet. Create your first feature for ${currentProduct.name}!`
-            : filterProductId 
-              ? 'No features found for the selected product.'
-              : 'No features found. Select a product to view or create features.'}
+            : filterProductId
+            ? "No features found for the selected product."
+            : "No features found. Select a product to view or create features."}
         </p>
       ) : (
         <table className="table">
@@ -175,37 +243,65 @@ export default function FeatureList({ product, productId, onUpdate }: FeatureLis
               <th>Description</th>
               <th>Module</th>
               <th>Owner</th>
-              <th style={{ width: '150px', textAlign: 'right' }}>Actions</th>
+              <th style={{ width: "150px", textAlign: "right" }}>Actions</th>
             </tr>
           </thead>
           <tbody>
             {features.map((feature) => {
-              const featureProduct = products.find(p => p.id === feature.product_id);
+              const featureProduct = products.find(
+                (p) => p.id === feature.product_id
+              );
               return (
                 <tr key={feature.id}>
                   {!product && (
-                    <td>{featureProduct?.name || feature.product_id || '-'}</td>
+                    <td>{featureProduct?.name || feature.product_id || "-"}</td>
                   )}
                   <td style={{ fontWeight: 500 }}>{feature.name}</td>
-                  <td>{feature.description || '-'}</td>
-                  <td>{feature.module_id ? `Module ${feature.module_id.substring(0, 8)}...` : '-'}</td>
+                  <td>{feature.description || "-"}</td>
                   <td>
-                    {feature.owner ? (
-                      resourceMap.get(feature.owner)?.name || feature.owner
-                    ) : '-'}
+                    {feature.module_id
+                      ? `Module ${feature.module_id.substring(0, 8)}...`
+                      : "-"}
                   </td>
-                  <td style={{ textAlign: 'right' }}>
+                  <td>
+                    {feature.owner
+                      ? resourceMap.get(feature.owner)?.name || feature.owner
+                      : "-"}
+                  </td>
+                  <td style={{ textAlign: "right" }}>
+                    {feature.diagram_xml && feature.diagram_xml.trim() && (
+                      <button
+                        onClick={() => setViewingDiagramFeature(feature)}
+                        style={{
+                          padding: "4px 12px",
+                          fontSize: "12px",
+                          backgroundColor: "#28a745",
+                          color: "#fff",
+                          border: "none",
+                          borderRadius: "4px",
+                          cursor: "pointer",
+                          marginRight: "8px",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: "4px",
+                        }}
+                        title="View Diagram"
+                      >
+                        <Image style={{ width: "14px", height: "14px" }} />
+                        Diagram
+                      </button>
+                    )}
                     <button
                       onClick={() => setEditingFeature(feature)}
                       style={{
-                        padding: '4px 12px',
-                        fontSize: '12px',
-                        backgroundColor: '#007bff',
-                        color: '#fff',
-                        border: 'none',
-                        borderRadius: '4px',
-                        cursor: 'pointer',
-                        marginRight: '8px',
+                        padding: "4px 12px",
+                        fontSize: "12px",
+                        backgroundColor: "#007bff",
+                        color: "#fff",
+                        border: "none",
+                        borderRadius: "4px",
+                        cursor: "pointer",
+                        marginRight: "8px",
                       }}
                     >
                       Edit
@@ -214,16 +310,18 @@ export default function FeatureList({ product, productId, onUpdate }: FeatureLis
                       onClick={() => handleDelete(feature.id)}
                       disabled={deletingId === feature.id}
                       style={{
-                        padding: '4px 12px',
-                        fontSize: '12px',
-                        backgroundColor: deletingId === feature.id ? '#ccc' : '#dc3545',
-                        color: '#fff',
-                        border: 'none',
-                        borderRadius: '4px',
-                        cursor: deletingId === feature.id ? 'not-allowed' : 'pointer',
+                        padding: "4px 12px",
+                        fontSize: "12px",
+                        backgroundColor:
+                          deletingId === feature.id ? "#ccc" : "#dc3545",
+                        color: "#fff",
+                        border: "none",
+                        borderRadius: "4px",
+                        cursor:
+                          deletingId === feature.id ? "not-allowed" : "pointer",
                       }}
                     >
-                      {deletingId === feature.id ? 'Deleting...' : 'Delete'}
+                      {deletingId === feature.id ? "Deleting..." : "Delete"}
                     </button>
                   </td>
                 </tr>
@@ -250,7 +348,7 @@ export default function FeatureList({ product, productId, onUpdate }: FeatureLis
           />
         )}
         {!currentProduct && (
-          <div style={{ padding: '20px', textAlign: 'center' }}>
+          <div style={{ padding: "20px", textAlign: "center" }}>
             <p>Please select a product first to create a feature.</p>
           </div>
         )}
@@ -261,30 +359,43 @@ export default function FeatureList({ product, productId, onUpdate }: FeatureLis
         onClose={() => setEditingFeature(null)}
         title="Edit Feature"
       >
-        {editingFeature && (() => {
-          const editProduct = currentProduct || products.find(p => p.id === editingFeature.product_id);
-          if (!editProduct) {
+        {editingFeature &&
+          (() => {
+            const editProduct =
+              currentProduct ||
+              products.find((p) => p.id === editingFeature.product_id);
+            if (!editProduct) {
+              return (
+                <div style={{ padding: "20px", textAlign: "center" }}>
+                  <p>Product not found for this feature.</p>
+                </div>
+              );
+            }
             return (
-              <div style={{ padding: '20px', textAlign: 'center' }}>
-                <p>Product not found for this feature.</p>
-              </div>
+              <FeatureForm
+                feature={editingFeature}
+                product={editProduct}
+                onSuccess={() => {
+                  setEditingFeature(null);
+                  loadFeatures();
+                  if (onUpdate) onUpdate();
+                }}
+                onCancel={() => setEditingFeature(null)}
+              />
             );
-          }
-          return (
-            <FeatureForm
-              feature={editingFeature}
-              product={editProduct}
-              onSuccess={() => {
-                setEditingFeature(null);
-                loadFeatures();
-                if (onUpdate) onUpdate();
-              }}
-              onCancel={() => setEditingFeature(null)}
-            />
-          );
-        })()}
+          })()}
+      </Modal>
+
+      {/* Diagram View Modal */}
+      <Modal
+        isOpen={!!viewingDiagramFeature}
+        onClose={() => setViewingDiagramFeature(null)}
+        title={`Diagram: ${viewingDiagramFeature?.name || ""}`}
+      >
+        {viewingDiagramFeature && viewingDiagramFeature.diagram_xml && (
+          <DrawIORenderer xmlContent={viewingDiagramFeature.diagram_xml} />
+        )}
       </Modal>
     </div>
   );
 }
-

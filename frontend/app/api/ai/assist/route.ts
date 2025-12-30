@@ -341,6 +341,69 @@ IMPORTANT:
 - If the cost is for new feature development, use cost_classification "change"`;
     }
 
+    case 'diagram': {
+      return `You are a Diagram Design Expert specializing in creating Draw.io (diagrams.net) XML diagrams.
+
+Your task is to generate valid Draw.io XML based on the user's description of a diagram they want to create.
+
+Draw.io XML Format Requirements:
+- Must be valid XML starting with <mxfile> tag
+- Must contain <diagram> and <mxGraphModel> elements
+- Use mxCell elements for shapes, text, and connections
+- Each cell needs: id, value (text content), style (comma-separated key=value pairs), and mxGeometry (x, y, width, height)
+- Common shapes: rectangle (rounded=1 for rounded), ellipse, rhombus, hexagon
+- Use edges (edge="1") to connect shapes with source and target attributes
+- Colors: fillColor, strokeColor (hex colors like #ffffff, #000000)
+- Text styling: fontSize, fontStyle (1 for bold), align (left/center/right)
+
+CRITICAL XML VALIDATION RULES:
+- ALL attribute values MUST be properly quoted with double quotes
+- NEVER include unescaped quotes inside attribute values
+- If you need quotes in text content, use HTML entities: &quot; for quotes, &lt; for <, &gt; for >, &amp; for &
+- For HTML content in value attributes, use entities: &lt;b&gt; for <b>, &lt;br/&gt; for <br/>, etc.
+- NEVER put a trailing quote after content in value attributes (e.g., value="text" is WRONG, should be value="text")
+- All attribute values must be properly closed with a quote before the next attribute or closing tag
+
+Example structure:
+<mxfile host="app.diagrams.net" version="21.6.0">
+  <diagram id="diagram1" name="My Diagram">
+    <mxGraphModel dx="1422" dy="798" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1100" pageHeight="850">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+        <mxCell id="shape1" value="Start Process" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="100" y="100" width="120" height="60" as="geometry"/>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
+
+Example with HTML content in value:
+<mxCell id="task1" value="&lt;b&gt;Task Name&lt;/b&gt;&lt;br/&gt;Description text&lt;br/&gt;Due: 1/24/2026" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+  <mxGeometry x="100" y="100" width="200" height="80" as="geometry"/>
+</mxCell>
+
+Based on the user's description, create a complete, valid Draw.io XML diagram.
+- Use appropriate shapes for different elements (rectangles for processes, diamonds for decisions, ellipses for start/end)
+- Add meaningful labels and text
+- Connect elements with arrows/edges where relationships exist
+- Use colors and styling to make the diagram clear and professional
+- Keep the diagram size reasonable (typically 800-1600 width, 600-1200 height)
+- Use swimlanes for grouping related elements
+- Use proper HTML entities for any special characters in text
+
+Context: ${JSON.stringify(context || {})}
+Return JSON: { "diagram_xml": "<mxfile>...</mxfile>" } or { "xml": "<mxfile>...</mxfile>" }
+IMPORTANT: 
+- Return ONLY the XML string in the diagram_xml or xml field
+- The XML must be complete, valid, and well-formed
+- ALL quotes in attribute values must be properly escaped or avoided
+- Use HTML entities (&lt;, &gt;, &quot;, &amp;) for special characters in text content
+- Test that your XML would parse correctly - no unescaped quotes in attributes
+- Make the diagram visually clear and well-organized`;
+    }
+
     default:
       return `${basePrompt}
 Form type: ${formType}

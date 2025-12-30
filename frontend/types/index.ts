@@ -61,6 +61,7 @@ export interface Feature {
   status?: string;
   order?: number;  // For ordering features
   cost_classification?: CostClassification;  // 'run' (Run/KTLO) or 'change' (Change/Growth)
+  diagram_xml?: string;  // Draw.io XML diagram content
   created_at?: string;
   updated_at?: string;
 }
@@ -127,6 +128,7 @@ export interface Task {
   blockers?: string[];
   due_date?: string;
   cost_classification?: CostClassification;  // 'run' (Run/KTLO) or 'change' (Change/Growth)
+  diagram_xml?: string;  // Draw.io XML diagram content
   // Computed cost fields (calculated from resource assignments)
   estimated_cost?: number;  // Calculated from estimated_hours × resource costs
   total_cost?: number;  // Calculated from actual_hours (or estimated_hours) × resource costs
@@ -403,6 +405,50 @@ export interface AWSCloudConfigCreate {
   region: string;
   account_id?: string;
   is_active?: boolean;
+}
+
+export interface AzureCloudConfigCreate {
+  name: string;
+  subscription_id: string;
+  client_id: string;
+  client_secret: string;
+  tenant_id: string;
+  region?: string;
+  is_active?: boolean;
+}
+
+export interface AWSCostSyncRequest {
+  product_id: string;
+  config_id: string;
+  module_id?: string;
+  start_date?: string;
+  end_date?: string;
+  dry_run?: boolean;
+}
+
+export interface AWSCostSyncResponse {
+  created_count: number;
+  updated_count: number;
+  skipped_count: number;
+  costs: Cost[];
+  errors: string[];
+}
+
+export interface AzureCostSyncRequest {
+  product_id: string;
+  config_id: string;
+  module_id?: string;
+  start_date?: string;
+  end_date?: string;
+  dry_run?: boolean;
+}
+
+export interface AzureCostSyncResponse {
+  created_count: number;
+  updated_count: number;
+  skipped_count: number;
+  costs: Cost[];
+  errors: string[];
 }
 
 export interface Cost {

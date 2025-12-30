@@ -2,8 +2,15 @@
 
 import { useEffect, useState } from "react";
 import { SignedIn, SignedOut, SignInButton } from "@clerk/nextjs";
-import { productsAPI, costsAPI, scenariosAPI } from "@/lib/api";
-import type { Product, CostItem, CostScenario } from "@/types";
+import {
+  productsAPI,
+  costsAPI,
+  scenariosAPI,
+  modulesAPI,
+  phasesAPI,
+  featuresAPI,
+} from "@/lib/api";
+import type { Product, CostItem, CostScenario, Module, Phase } from "@/types";
 import ProductList from "@/components/ProductList";
 import ResourceList from "@/components/ResourceList";
 import TaskList from "@/components/TaskList";
@@ -11,6 +18,11 @@ import FeatureList from "@/components/FeatureList";
 import ProductWorkspace from "@/components/ProductWorkspace";
 import ModuleList from "@/components/modules/ModuleList";
 import StakeholderList from "@/components/stakeholders/StakeholderList";
+import PhaseList from "@/components/PhaseList";
+import StrategyList from "@/components/strategy/StrategyList";
+import CostList from "@/components/economics/CostList";
+import ProblemListManagement from "@/components/discovery/ProblemListManagement";
+import ReportsView from "@/components/reports/ReportsView";
 import Modal from "@/components/Modal";
 import { UserButton } from "@/components/UserButton";
 import { Button } from "@/components/ui/button";
@@ -25,24 +37,154 @@ import {
 import { ThemeToggle } from "@/components/ThemeToggle";
 import Link from "next/link";
 import { Settings } from "lucide-react";
+import Chatbot from "@/components/Chatbot";
 
 export default function Home() {
   const [products, setProducts] = useState<Product[]>([]);
   const [scenarios, setScenarios] = useState<CostScenario[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"workspace" | "management">(
-    "workspace"
-  );
+  const [activeTab, setActiveTab] = useState<
+    "workspace" | "management" | "reports"
+  >("workspace");
   const [managementSubTab, setManagementSubTab] = useState<
-    "products" | "modules" | "features" | "resources" | "tasks" | "stakeholders"
+    | "products"
+    | "modules"
+    | "features"
+    | "resources"
+    | "tasks"
+    | "stakeholders"
+    | "phases"
+    | "strategies"
+    | "costs"
+    | "problems"
   >("products");
   const [selectedProductForStakeholders, setSelectedProductForStakeholders] =
     useState<string | null>(null);
+  const [selectedModuleForStakeholders, setSelectedModuleForStakeholders] =
+    useState<string | null>(null);
+  const [selectedProductForFeatures, setSelectedProductForFeatures] = useState<
+    string | null
+  >(null);
+  const [selectedModuleForFeatures, setSelectedModuleForFeatures] = useState<
+    string | null
+  >(null);
+  const [selectedProductForTasks, setSelectedProductForTasks] = useState<
+    string | null
+  >(null);
+  const [selectedModuleForTasks, setSelectedModuleForTasks] = useState<
+    string | null
+  >(null);
+  const [selectedPhaseForTasks, setSelectedPhaseForTasks] = useState<
+    string | null
+  >(null);
+  const [selectedFeatureForTasks, setSelectedFeatureForTasks] = useState<
+    string | null
+  >(null);
+  const [modulesForFeatures, setModulesForFeatures] = useState<Module[]>([]);
+  const [modulesForStakeholders, setModulesForStakeholders] = useState<
+    Module[]
+  >([]);
+  const [modulesForTasks, setModulesForTasks] = useState<Module[]>([]);
+  const [phasesForTasks, setPhasesForTasks] = useState<any[]>([]);
+  const [featuresForTasks, setFeaturesForTasks] = useState<any[]>([]);
   const [costItems, setCostItems] = useState<CostItem[]>([]);
 
   useEffect(() => {
     loadData();
+  }, []);
+
+  // Load modules for features when product is selected
+  useEffect(() => {
+    const loadModulesForFeatures = async () => {
+      if (selectedProductForFeatures) {
+        try {
+          const data = await modulesAPI.getByProduct(
+            selectedProductForFeatures
+          );
+          setModulesForFeatures(data);
+        } catch (err) {
+          console.error("Failed to load modules for features:", err);
+          setModulesForFeatures([]);
+        }
+      } else {
+        setModulesForFeatures([]);
+      }
+    };
+    loadModulesForFeatures();
+  }, [selectedProductForFeatures]);
+
+  // Load modules for stakeholders when product is selected
+  useEffect(() => {
+    const loadModulesForStakeholders = async () => {
+      if (selectedProductForStakeholders) {
+        try {
+          const data = await modulesAPI.getByProduct(
+            selectedProductForStakeholders
+          );
+          setModulesForStakeholders(data);
+        } catch (err) {
+          console.error("Failed to load modules for stakeholders:", err);
+          setModulesForStakeholders([]);
+        }
+      } else {
+        setModulesForStakeholders([]);
+      }
+    };
+    loadModulesForStakeholders();
+  }, [selectedProductForStakeholders]);
+
+  // Load modules for tasks when product is selected
+  useEffect(() => {
+    const loadModulesForTasks = async () => {
+      if (selectedProductForTasks) {
+        try {
+          const data = await modulesAPI.getByProduct(selectedProductForTasks);
+          setModulesForTasks(data);
+        } catch (err) {
+          console.error("Failed to load modules for tasks:", err);
+          setModulesForTasks([]);
+        }
+      } else {
+        setModulesForTasks([]);
+      }
+    };
+    loadModulesForTasks();
+  }, [selectedProductForTasks]);
+
+  // Load features for tasks when product is selected
+  useEffect(() => {
+    const loadFeaturesForTasks = async () => {
+      if (selectedProductForTasks) {
+        try {
+          const data = await featuresAPI.getAll({
+            product_id: selectedProductForTasks,
+            module_id: selectedModuleForTasks || undefined,
+          });
+          setFeaturesForTasks(data);
+        } catch (err) {
+          console.error("Failed to load features for tasks:", err);
+          setFeaturesForTasks([]);
+        }
+      } else {
+        setFeaturesForTasks([]);
+      }
+    };
+    loadFeaturesForTasks();
+  }, [selectedProductForTasks, selectedModuleForTasks]);
+
+  // Load phases for tasks
+  useEffect(() => {
+    const loadPhases = async () => {
+      try {
+        const phasesData = await phasesAPI.getAll();
+        setPhasesForTasks(phasesData);
+      } catch (err) {
+        console.error("Failed to load phases for tasks:", err);
+        setPhasesForTasks([]);
+      }
+    };
+    loadPhases();
   }, []);
 
   // Listen for navigation events from forms
@@ -53,9 +195,16 @@ export default function Home() {
       setManagementSubTab("modules");
     };
 
+    const handleNavigateToPhases = (event: Event) => {
+      setActiveTab("management");
+      setManagementSubTab("phases");
+    };
+
     window.addEventListener("navigateToModules", handleNavigateToModules);
+    window.addEventListener("navigateToPhases", handleNavigateToPhases);
     return () => {
       window.removeEventListener("navigateToModules", handleNavigateToModules);
+      window.removeEventListener("navigateToPhases", handleNavigateToPhases);
     };
   }, []);
 
@@ -199,7 +348,6 @@ export default function Home() {
             >
               Workspace
             </Button>
-            <div className="flex-1" />
             <Button
               type="button"
               onClick={() => setActiveTab("management")}
@@ -212,6 +360,19 @@ export default function Home() {
             >
               Management
             </Button>
+            <Button
+              type="button"
+              onClick={() => setActiveTab("reports")}
+              variant={activeTab === "reports" ? "default" : "ghost"}
+              className={`rounded-b-none border-b-2 ${
+                activeTab === "reports"
+                  ? "border-primary"
+                  : "border-transparent"
+              }`}
+            >
+              Reports
+            </Button>
+            <div className="flex-1" />
           </div>
 
           {/* Sub-navigation for Management */}
@@ -275,6 +436,44 @@ export default function Home() {
               >
                 Stakeholders
               </Button>
+              <Button
+                type="button"
+                onClick={() => setManagementSubTab("phases")}
+                variant={
+                  managementSubTab === "phases" ? "secondary" : "outline"
+                }
+                size="sm"
+              >
+                Phases
+              </Button>
+              <Button
+                type="button"
+                onClick={() => setManagementSubTab("strategies")}
+                variant={
+                  managementSubTab === "strategies" ? "secondary" : "outline"
+                }
+                size="sm"
+              >
+                Strategies
+              </Button>
+              <Button
+                type="button"
+                onClick={() => setManagementSubTab("costs")}
+                variant={managementSubTab === "costs" ? "secondary" : "outline"}
+                size="sm"
+              >
+                Costs
+              </Button>
+              <Button
+                type="button"
+                onClick={() => setManagementSubTab("problems")}
+                variant={
+                  managementSubTab === "problems" ? "secondary" : "outline"
+                }
+                size="sm"
+              >
+                Problems
+              </Button>
             </div>
           )}
 
@@ -282,6 +481,8 @@ export default function Home() {
           {activeTab === "workspace" && (
             <ProductWorkspace onUpdate={loadData} />
           )}
+
+          {activeTab === "reports" && <ReportsView />}
 
           {activeTab === "management" && (
             <>
@@ -294,14 +495,199 @@ export default function Home() {
               )}
 
               {managementSubTab === "features" && (
-                <FeatureList onUpdate={loadData} />
+                <div className="space-y-4">
+                  <div className="flex items-center gap-4 p-4 bg-muted rounded-lg">
+                    <div className="flex items-center gap-2">
+                      <Label htmlFor="feature-product-select">Product:</Label>
+                      <Select
+                        value={selectedProductForFeatures || ""}
+                        onValueChange={(value) => {
+                          setSelectedProductForFeatures(value || null);
+                          setSelectedModuleForFeatures(null);
+                        }}
+                      >
+                        <SelectTrigger
+                          id="feature-product-select"
+                          className="w-[200px]"
+                        >
+                          <SelectValue placeholder="Select a product" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {products.map((product) => (
+                            <SelectItem key={product.id} value={product.id}>
+                              {product.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    {selectedProductForFeatures && (
+                      <div className="flex items-center gap-2">
+                        <Label htmlFor="feature-module-select">Module:</Label>
+                        <Select
+                          value={selectedModuleForFeatures || "all"}
+                          onValueChange={(value) =>
+                            setSelectedModuleForFeatures(
+                              value === "all" ? null : value
+                            )
+                          }
+                        >
+                          <SelectTrigger
+                            id="feature-module-select"
+                            className="w-[200px]"
+                          >
+                            <SelectValue placeholder="Select a module" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">All Modules</SelectItem>
+                            {modulesForFeatures.map((module) => (
+                              <SelectItem key={module.id} value={module.id}>
+                                {module.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
+                  </div>
+                  <FeatureList
+                    productId={selectedProductForFeatures || undefined}
+                    moduleId={selectedModuleForFeatures || undefined}
+                    onUpdate={loadData}
+                  />
+                </div>
               )}
 
               {managementSubTab === "resources" && (
                 <ResourceList onUpdate={loadData} />
               )}
 
-              {managementSubTab === "tasks" && <TaskList onUpdate={loadData} />}
+              {managementSubTab === "tasks" && (
+                <div className="space-y-4">
+                  <div className="flex items-center gap-4 p-4 bg-muted rounded-lg">
+                    <div className="flex items-center gap-2">
+                      <Label htmlFor="task-product-select">Product:</Label>
+                      <Select
+                        value={selectedProductForTasks || ""}
+                        onValueChange={(value) => {
+                          setSelectedProductForTasks(value || null);
+                          setSelectedModuleForTasks(null);
+                        }}
+                      >
+                        <SelectTrigger
+                          id="task-product-select"
+                          className="w-[200px]"
+                        >
+                          <SelectValue placeholder="Select a product" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {products.map((product) => (
+                            <SelectItem key={product.id} value={product.id}>
+                              {product.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    {selectedProductForTasks && (
+                      <div className="flex items-center gap-2">
+                        <Label htmlFor="task-module-select">Module:</Label>
+                        <Select
+                          value={selectedModuleForTasks || "all"}
+                          onValueChange={(value) => {
+                            setSelectedModuleForTasks(
+                              value === "all" ? null : value
+                            );
+                            setSelectedFeatureForTasks(null); // Reset feature when module changes
+                          }}
+                        >
+                          <SelectTrigger
+                            id="task-module-select"
+                            className="w-[200px]"
+                          >
+                            <SelectValue placeholder="Select a module" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">All Modules</SelectItem>
+                            {modulesForTasks.map((module) => (
+                              <SelectItem key={module.id} value={module.id}>
+                                {module.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
+                    <div className="flex items-center gap-2">
+                      <Label htmlFor="task-phase-select">Phase:</Label>
+                      <Select
+                        value={selectedPhaseForTasks || "all"}
+                        onValueChange={(value) =>
+                          setSelectedPhaseForTasks(
+                            value === "all" ? null : value
+                          )
+                        }
+                      >
+                        <SelectTrigger
+                          id="task-phase-select"
+                          className="w-[200px]"
+                        >
+                          <SelectValue placeholder="Select a phase" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Phases</SelectItem>
+                          {phasesForTasks.map((phase) => (
+                            <SelectItem key={phase.id} value={phase.id}>
+                              {phase.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    {selectedProductForTasks && (
+                      <div className="flex items-center gap-2">
+                        <Label htmlFor="task-feature-select">Feature:</Label>
+                        <Select
+                          value={selectedFeatureForTasks || "all"}
+                          onValueChange={(value) =>
+                            setSelectedFeatureForTasks(
+                              value === "all" ? null : value
+                            )
+                          }
+                        >
+                          <SelectTrigger
+                            id="task-feature-select"
+                            className="w-[200px]"
+                          >
+                            <SelectValue placeholder="Select a feature" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">All Features</SelectItem>
+                            {featuresForTasks.map((feature) => (
+                              <SelectItem key={feature.id} value={feature.id}>
+                                {feature.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
+                  </div>
+                  <TaskList
+                    productId={selectedProductForTasks || undefined}
+                    moduleId={selectedModuleForTasks || undefined}
+                    initialFilterModuleId={selectedModuleForTasks || ""}
+                    initialFilterPhaseId={selectedPhaseForTasks || ""}
+                    initialFilterFeatureId={selectedFeatureForTasks || ""}
+                    hideFilters={true}
+                    onUpdate={loadData}
+                  />
+                </div>
+              )}
+
+              {managementSubTab === "phases" && (
+                <PhaseList onUpdate={loadData} />
+              )}
 
               {managementSubTab === "stakeholders" && (
                 <div className="space-y-4">
@@ -312,34 +698,78 @@ export default function Home() {
                     </div>
                   ) : (
                     <>
-                      <div className="mb-4">
-                        <Label htmlFor="product-select" className="block mb-2">
-                          Select Product
-                        </Label>
-                        <Select
-                          value={selectedProductForStakeholders || ""}
-                          onValueChange={(value) =>
-                            setSelectedProductForStakeholders(value || null)
-                          }
-                        >
-                          <SelectTrigger
-                            id="product-select"
-                            className="w-full max-w-md"
+                      <div className="mb-4 space-y-4">
+                        <div>
+                          <Label
+                            htmlFor="product-select"
+                            className="block mb-2"
                           >
-                            <SelectValue placeholder="Select a product to view stakeholders" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {products.map((product) => (
-                              <SelectItem key={product.id} value={product.id}>
-                                {product.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                            Select Product
+                          </Label>
+                          <Select
+                            value={selectedProductForStakeholders || ""}
+                            onValueChange={(value) => {
+                              setSelectedProductForStakeholders(value || null);
+                              setSelectedModuleForStakeholders(null);
+                            }}
+                          >
+                            <SelectTrigger
+                              id="product-select"
+                              className="w-full max-w-md"
+                            >
+                              <SelectValue placeholder="Select a product to view stakeholders" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {products.map((product) => (
+                                <SelectItem key={product.id} value={product.id}>
+                                  {product.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        {selectedProductForStakeholders && (
+                          <div>
+                            <Label
+                              htmlFor="stakeholder-module-select"
+                              className="block mb-2"
+                            >
+                              Select Module (Optional)
+                            </Label>
+                            <Select
+                              value={
+                                selectedModuleForStakeholders || "product-level"
+                              }
+                              onValueChange={(value) =>
+                                setSelectedModuleForStakeholders(
+                                  value === "product-level" ? null : value
+                                )
+                              }
+                            >
+                              <SelectTrigger
+                                id="stakeholder-module-select"
+                                className="w-full max-w-md"
+                              >
+                                <SelectValue placeholder="Select a module" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="product-level">
+                                  Product Level
+                                </SelectItem>
+                                {modulesForStakeholders.map((module) => (
+                                  <SelectItem key={module.id} value={module.id}>
+                                    {module.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        )}
                       </div>
                       {selectedProductForStakeholders && (
                         <StakeholderList
                           productId={selectedProductForStakeholders}
+                          moduleId={selectedModuleForStakeholders || undefined}
                           onUpdate={loadData}
                         />
                       )}
@@ -347,9 +777,24 @@ export default function Home() {
                   )}
                 </div>
               )}
+
+              {managementSubTab === "strategies" && (
+                <StrategyList onUpdate={loadData} />
+              )}
+
+              {managementSubTab === "costs" && <CostList onUpdate={loadData} />}
+
+              {managementSubTab === "problems" && (
+                <ProblemListManagement onUpdate={loadData} />
+              )}
             </>
           )}
         </>
+      </SignedIn>
+
+      {/* AI Chatbot - Available everywhere */}
+      <SignedIn>
+        <Chatbot />
       </SignedIn>
     </div>
   );

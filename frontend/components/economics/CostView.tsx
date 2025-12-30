@@ -255,14 +255,6 @@ export default function CostView({ productId, moduleId }: CostViewProps) {
     }).format(amount);
   };
 
-  // Calculate summary totals (always show, even if 0)
-  const runTotal = classificationSummary?.run?.total_cost || 0;
-  const changeTotal = classificationSummary?.change?.total_cost || 0;
-  const grandTotal = runTotal + changeTotal;
-  const runPercentage = grandTotal > 0 ? (runTotal / grandTotal) * 100 : 0;
-  const changePercentage =
-    grandTotal > 0 ? (changeTotal / grandTotal) * 100 : 0;
-
   // Filter data based on selected filters
   const filteredFeatureCosts = featureCosts
     .filter((fc: any) => {
@@ -339,6 +331,32 @@ export default function CostView({ productId, moduleId }: CostViewProps) {
       return cost.module_id === selectedModuleFilter;
     }
   });
+
+  // Calculate summary totals from actual cost records (always show, even if 0)
+  // Use filteredDirectCosts to respect current filters
+  // Handle costs with no classification by defaulting to "run" for infrastructure/direct costs
+  const runTotal = filteredDirectCosts
+    .filter((cost) => {
+      // Include costs explicitly classified as "run"
+      if (cost.cost_classification === "run") return true;
+      // Include costs without classification (default to run for infrastructure/direct costs)
+      if (!cost.cost_classification) return true;
+      return false;
+    })
+    .reduce((sum, cost) => sum + (cost.amount || 0), 0);
+
+  const changeTotal = filteredDirectCosts
+    .filter((cost) => cost.cost_classification === "change")
+    .reduce((sum, cost) => sum + (cost.amount || 0), 0);
+
+  const grandTotal = filteredDirectCosts.reduce(
+    (sum, cost) => sum + (cost.amount || 0),
+    0
+  );
+
+  const runPercentage = grandTotal > 0 ? (runTotal / grandTotal) * 100 : 0;
+  const changePercentage =
+    grandTotal > 0 ? (changeTotal / grandTotal) * 100 : 0;
 
   // Prepare trend chart data - show current run costs as of today
   const calculateRunCostTotal = () => {

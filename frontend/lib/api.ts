@@ -18,8 +18,17 @@ export async function fetchAPI<T>(endpoint: string, options?: RequestInit): Prom
 
     clearTimeout(timeoutId);
 
+    // Debug logging for Azure costs endpoints
+    if (endpoint.includes('/azure-costs/')) {
+      console.log(`[FRONTEND DEBUG] fetchAPI - Response status: ${response.status}, ok: ${response.ok}`);
+    }
+
     if (!response.ok) {
       const error = await response.json().catch(() => ({ detail: 'An error occurred' }));
+      
+      if (endpoint.includes('/azure-costs/')) {
+        console.error(`[FRONTEND DEBUG] fetchAPI - Response error:`, error);
+      }
       
       // Handle FastAPI validation errors (422)
       if (response.status === 422 && Array.isArray(error.detail)) {
@@ -40,9 +49,21 @@ export async function fetchAPI<T>(endpoint: string, options?: RequestInit): Prom
       throw new Error(`HTTP error! status: ${response.status}`);
     }
 
-    return response.json();
+    const jsonData = await response.json();
+    
+    if (endpoint.includes('/azure-costs/')) {
+      console.log(`[FRONTEND DEBUG] fetchAPI - Response JSON:`, jsonData);
+      console.log(`[FRONTEND DEBUG] fetchAPI - Costs array:`, jsonData.costs);
+      console.log(`[FRONTEND DEBUG] fetchAPI - Costs length:`, jsonData.costs?.length);
+    }
+    
+    return jsonData;
   } catch (err) {
     clearTimeout(timeoutId);
+    
+    if (endpoint.includes('/azure-costs/')) {
+      console.error(`[FRONTEND DEBUG] fetchAPI - Error caught:`, err);
+    }
     
     if (err instanceof TypeError && err.message.includes('fetch')) {
       throw new Error(`Cannot connect to backend at ${API_URL}. Make sure the backend server is running.`);
@@ -1073,6 +1094,67 @@ export const awsCostsAPI = {
       costs: import('../types').Cost[];
       errors: string[];
     }>(`/api/aws-costs/preview?${query.toString()}`);
+  },
+};
+
+// Azure Costs API
+export const azureCostsAPI = {
+  sync: (
+    organizationId: string,
+    productId: string,
+    configId: string,
+    options?: {
+      moduleId?: string;
+      startDate?: string;
+      endDate?: string;
+    }
+  ) => {
+    return fetchAPI<import('../types').AzureCostSyncResponse>(
+      `/api/azure-costs/sync?organization_id=${organizationId}`,
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          product_id: productId,
+          config_id: configId,
+          module_id: options?.moduleId,
+          start_date: options?.startDate,
+          end_date: options?.endDate,
+        }),
+      }
+    );
+  },
+  preview: async (
+    organizationId: string,
+    productId: string,
+    configId: string,
+    options?: {
+      moduleId?: string;
+      startDate?: string;
+      endDate?: string;
+    }
+  ) => {
+    const query = new URLSearchParams();
+    query.append('organization_id', organizationId);
+    query.append('product_id', productId);
+    query.append('config_id', configId);
+    if (options?.moduleId) query.append('module_id', options.moduleId);
+    if (options?.startDate) query.append('start_date', options.startDate);
+    if (options?.endDate) query.append('end_date', options.endDate);
+    
+    const url = `/api/azure-costs/preview?${query.toString()}`;
+    console.log("[FRONTEND DEBUG] azureCostsAPI.preview URL:", url);
+    console.log("[FRONTEND DEBUG] azureCostsAPI.preview options:", options);
+    
+    try {
+      const result = await fetchAPI<import('../types').AzureCostSyncResponse>(url);
+      console.log("[FRONTEND DEBUG] azureCostsAPI.preview raw result:", result);
+      console.log("[FRONTEND DEBUG] azureCostsAPI.preview result.costs:", result.costs);
+      console.log("[FRONTEND DEBUG] azureCostsAPI.preview result.costs length:", result.costs?.length);
+      return result;
+    } catch (error) {
+      console.error("[FRONTEND DEBUG] azureCostsAPI.preview error:", error);
+      throw error;
+    }
   },
 };
 

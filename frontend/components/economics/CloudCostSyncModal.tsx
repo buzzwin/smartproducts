@@ -25,11 +25,13 @@ import {
   CheckCircle2,
   XCircle,
   AlertCircle,
+  AlertTriangle,
   HelpCircle,
   ExternalLink,
 } from "lucide-react";
-import { cloudConfigsAPI, awsCostsAPI } from "@/lib/api";
+import { cloudConfigsAPI, awsCostsAPI, azureCostsAPI } from "@/lib/api";
 import type { CloudConfig, CloudProvider, Cost } from "@/types";
+import { Badge } from "@/components/ui/badge";
 import {
   Table,
   TableBody,
@@ -44,6 +46,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import Link from "next/link";
 
 interface CloudCostSyncModalProps {
@@ -54,6 +57,275 @@ interface CloudCostSyncModalProps {
   onSuccess: () => void;
 }
 
+interface AccountSyncTabProps {
+  config: CloudConfig;
+  provider: CloudProvider;
+  startDate: string;
+  endDate: string;
+  moduleId?: string;
+  productId: string;
+  organizationId: string;
+  previewData: Cost[];
+  isPreviewing: boolean;
+  isSyncing: boolean;
+  syncResult?: {
+    created_count: number;
+    updated_count: number;
+    skipped_count: number;
+    errors: string[];
+  };
+  error?: string;
+  onPreview: () => void;
+  onSync: () => void;
+}
+
+function AccountSyncTab({
+  config,
+  provider,
+  startDate,
+  endDate,
+  previewData,
+  isPreviewing,
+  isSyncing,
+  syncResult,
+  error,
+  onPreview,
+  onSync,
+}: AccountSyncTabProps) {
+  const hasPreview = previewData.length > 0;
+  const hasSyncResult = !!syncResult;
+
+  return (
+    <div className="space-y-4">
+      {/* Account Info */}
+      <div className="p-3 bg-muted/50 rounded-lg">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="font-semibold">{config.name}</h3>
+            <p className="text-sm text-muted-foreground">
+              {provider.toUpperCase()}
+              {config.region && ` • ${config.region}`}
+              {config.account_id && ` • ${config.account_id}`}
+              {config.is_active && (
+                <Badge variant="outline" className="ml-2 text-xs">
+                  Active
+                </Badge>
+              )}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Error Message */}
+      {error && (
+        <div className="p-3 text-sm text-red-600 bg-red-50 rounded border border-red-200 dark:bg-red-950 dark:border-red-800 dark:text-red-400">
+          {error}
+        </div>
+      )}
+
+      {/* Preview Section */}
+      {hasPreview && (
+        <div className="p-4 rounded-lg border bg-blue-50 dark:bg-blue-950 border-blue-200 dark:border-blue-800">
+          <div className="flex items-center justify-between mb-3">
+            <h4 className="font-semibold text-blue-900 dark:text-blue-100">
+              📋 Preview: {previewData.length} cost
+              {previewData.length !== 1 ? "s" : ""} will be created
+            </h4>
+            <Badge variant="outline" className="bg-white dark:bg-gray-800">
+              Review before syncing
+            </Badge>
+          </div>
+
+          {/* Summary */}
+          <div className="mb-4 p-3 bg-white dark:bg-gray-900 rounded border">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+              <div>
+                <p className="text-muted-foreground">Total Amount</p>
+                <p className="font-semibold text-lg">
+                  {previewData[0]?.currency || "USD"}{" "}
+                  {previewData
+                    .reduce((sum, cost) => sum + (cost.amount || 0), 0)
+                    .toFixed(2)}
+                </p>
+              </div>
+              <div>
+                <p className="text-muted-foreground">Total Costs</p>
+                <p className="font-semibold">{previewData.length}</p>
+              </div>
+              <div>
+                <p className="text-muted-foreground">Date Range</p>
+                <p className="font-semibold">
+                  {startDate && endDate
+                    ? `${new Date(startDate).toLocaleDateString()} - ${new Date(
+                        endDate
+                      ).toLocaleDateString()}`
+                    : "Last month"}
+                </p>
+              </div>
+              <div>
+                <p className="text-muted-foreground">Provider</p>
+                <p className="font-semibold">{provider.toUpperCase()}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="overflow-y-auto max-h-96 border rounded bg-white dark:bg-gray-900">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Service Name</TableHead>
+                  <TableHead>Amount</TableHead>
+                  <TableHead>Scope</TableHead>
+                  <TableHead>Category</TableHead>
+                  <TableHead>Type</TableHead>
+                  <TableHead>Classification</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {previewData.map((cost, index) => (
+                  <TableRow key={cost.id || `preview-${index}`}>
+                    <TableCell className="font-medium">
+                      {cost.name?.replace(/^(AWS|Azure) - /, "") || cost.name}
+                    </TableCell>
+                    <TableCell>
+                      <span className="font-semibold">
+                        {cost.currency || "USD"}{" "}
+                        {cost.amount?.toFixed(2) || "0.00"}
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className="text-xs">
+                        {cost.scope || "N/A"}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>{cost.category || "N/A"}</TableCell>
+                    <TableCell>
+                      <Badge variant="secondary" className="text-xs">
+                        {cost.cost_type || "N/A"}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Badge
+                        variant={
+                          cost.cost_classification === "run"
+                            ? "default"
+                            : "outline"
+                        }
+                        className="text-xs"
+                      >
+                        {cost.cost_classification === "run"
+                          ? "Run/KTLO"
+                          : cost.cost_classification === "change"
+                          ? "Change/Growth"
+                          : "N/A"}
+                      </Badge>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+
+          <div className="mt-3 p-2 bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded text-sm">
+            <p className="text-amber-800 dark:text-amber-200">
+              <strong>Note:</strong> This preview shows what will be created
+              when you sync. You can edit, categorize, and link these costs
+              after they're imported.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Empty State Message */}
+      {!hasPreview && !hasSyncResult && !isPreviewing && (
+        <div className="p-4 bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded">
+          <div className="flex items-start gap-2">
+            <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400 mt-0.5" />
+            <div>
+              <p className="font-semibold text-amber-900 dark:text-amber-100 mb-1">
+                No preview data yet
+              </p>
+              <p className="text-sm text-amber-800 dark:text-amber-200">
+                Click "Preview" to see what costs will be imported from this
+                account.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Sync Result */}
+      {hasSyncResult && (
+        <div className="p-4 rounded-lg border">
+          <div className="flex gap-2 items-center mb-2">
+            {syncResult.errors.length === 0 ? (
+              <CheckCircle2 className="w-5 h-5 text-green-500" />
+            ) : (
+              <AlertCircle className="w-5 h-5 text-yellow-500" />
+            )}
+            <h4 className="font-semibold">Sync Complete</h4>
+          </div>
+          <div className="space-y-1 text-sm">
+            <p>Created: {syncResult.created_count}</p>
+            <p>Updated: {syncResult.updated_count}</p>
+            <p>Skipped: {syncResult.skipped_count}</p>
+            {syncResult.errors.length > 0 && (
+              <div className="mt-2">
+                <p className="font-semibold text-red-600 dark:text-red-400">
+                  Errors:
+                </p>
+                <ul className="list-disc list-inside">
+                  {syncResult.errors.slice(0, 5).map((err, idx) => (
+                    <li key={idx} className="text-xs">
+                      {err}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Actions */}
+      <div className="flex gap-2 justify-end">
+        <Button
+          type="button"
+          variant="outline"
+          onClick={onPreview}
+          disabled={isPreviewing || isSyncing || !startDate || !endDate}
+        >
+          {isPreviewing ? (
+            <>
+              <Loader2 className="mr-2 w-4 h-4 animate-spin" />
+              Previewing...
+            </>
+          ) : (
+            "Preview"
+          )}
+        </Button>
+        <Button
+          type="button"
+          onClick={onSync}
+          disabled={isSyncing || isPreviewing || !hasPreview}
+          variant={!hasPreview ? "outline" : "default"}
+        >
+          {isSyncing ? (
+            <>
+              <Loader2 className="mr-2 w-4 h-4 animate-spin" />
+              Syncing...
+            </>
+          ) : !hasPreview ? (
+            "Preview First"
+          ) : (
+            "Sync Costs"
+          )}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 export function CloudCostSyncModal({
   productId,
   moduleId,
@@ -62,22 +334,31 @@ export function CloudCostSyncModal({
   onSuccess,
 }: CloudCostSyncModalProps) {
   const { organization, isLoaded } = useOrganization();
-  const [provider, setProvider] = useState<CloudProvider>("aws");
-  const [configs, setConfigs] = useState<CloudConfig[]>([]);
-  const [selectedConfigId, setSelectedConfigId] = useState<string>("");
+  const [awsConfigs, setAwsConfigs] = useState<CloudConfig[]>([]);
+  const [azureConfigs, setAzureConfigs] = useState<CloudConfig[]>([]);
   const [startDate, setStartDate] = useState<string>("");
   const [endDate, setEndDate] = useState<string>("");
-  const [previewData, setPreviewData] = useState<Cost[] | null>(null);
+  // Track preview data per config
+  const [previewData, setPreviewData] = useState<Record<string, Cost[]>>({});
+  // Track previewing state per config
+  const [previewing, setPreviewing] = useState<Record<string, boolean>>({});
+  // Track syncing state per config
+  const [syncing, setSyncing] = useState<Record<string, boolean>>({});
+  // Track sync results per config
+  const [syncResults, setSyncResults] = useState<
+    Record<
+      string,
+      {
+        created_count: number;
+        updated_count: number;
+        skipped_count: number;
+        errors: string[];
+      }
+    >
+  >({});
+  // Track errors per config
+  const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
-  const [previewing, setPreviewing] = useState(false);
-  const [syncing, setSyncing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [syncResult, setSyncResult] = useState<{
-    created_count: number;
-    updated_count: number;
-    skipped_count: number;
-    errors: string[];
-  } | null>(null);
 
   // Set default date range (last month)
   useEffect(() => {
@@ -100,95 +381,128 @@ export function CloudCostSyncModal({
     }
   }, [open, startDate, endDate]);
 
-  // Load cloud configs when provider changes
+  // Load all cloud configs when modal opens
   useEffect(() => {
     if (isLoaded && organization?.id && open) {
-      loadConfigs();
+      loadAllConfigs();
     }
-  }, [isLoaded, organization?.id, provider, open]);
+  }, [isLoaded, organization?.id, open]);
 
-  const loadConfigs = async () => {
+  const loadAllConfigs = async () => {
     if (!organization?.id) return;
 
+    setLoading(true);
     try {
-      const data = await cloudConfigsAPI.getAll(organization.id, provider);
-      // Show all configs for the provider, not just active ones
-      // User can select any config they want to use
-      setConfigs(data);
-      if (data.length > 0 && !selectedConfigId) {
-        // Prefer active config if available, otherwise use first one
-        const activeConfig = data.find((c) => c.is_active);
-        setSelectedConfigId(activeConfig ? activeConfig.id : data[0].id);
-      }
+      // Load both AWS and Azure configs
+      const [awsData, azureData] = await Promise.all([
+        cloudConfigsAPI.getAll(organization.id, "aws"),
+        cloudConfigsAPI.getAll(organization.id, "azure"),
+      ]);
+      setAwsConfigs(awsData);
+      setAzureConfigs(azureData);
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Failed to load configurations"
-      );
-    }
-  };
-
-  const handlePreview = async () => {
-    if (!organization?.id || !selectedConfigId) {
-      alert("Please select a cloud configuration");
-      return;
-    }
-
-    setPreviewing(true);
-    setError(null);
-    setPreviewData(null);
-
-    try {
-      const result = await awsCostsAPI.preview(
-        organization.id,
-        productId,
-        selectedConfigId,
-        {
-          moduleId,
-          startDate: startDate ? new Date(startDate).toISOString() : undefined,
-          endDate: endDate ? new Date(endDate).toISOString() : undefined,
-        }
-      );
-      // Preview API returns AWSCostSyncResponse with costs array
-      setPreviewData(result.costs);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to preview costs");
+      console.error("Failed to load configurations:", err);
     } finally {
-      setPreviewing(false);
+      setLoading(false);
     }
   };
 
-  const handleSync = async () => {
-    if (!organization?.id || !selectedConfigId) {
-      alert("Please select a cloud configuration");
+  const handlePreview = async (configId: string, provider: CloudProvider) => {
+    if (!organization?.id) {
+      alert("Organization not loaded");
       return;
     }
 
-    setSyncing(true);
-    setError(null);
-    setSyncResult(null);
+    setPreviewing((prev) => ({ ...prev, [configId]: true }));
+    setErrors((prev) => ({ ...prev, [configId]: "" }));
+    setPreviewData((prev) => ({ ...prev, [configId]: [] }));
 
     try {
-      const result = await awsCostsAPI.sync(
-        organization.id,
-        productId,
-        selectedConfigId,
-        {
-          moduleId,
-          startDate: startDate ? new Date(startDate).toISOString() : undefined,
-          endDate: endDate ? new Date(endDate).toISOString() : undefined,
-        }
-      );
-      setSyncResult(result);
+      const previewOptions = {
+        moduleId,
+        startDate: startDate ? new Date(startDate).toISOString() : undefined,
+        endDate: endDate ? new Date(endDate).toISOString() : undefined,
+      };
+
+      let result;
+      if (provider === "aws") {
+        result = await awsCostsAPI.preview(
+          organization.id,
+          productId,
+          configId,
+          previewOptions
+        );
+      } else if (provider === "azure") {
+        result = await azureCostsAPI.preview(
+          organization.id,
+          productId,
+          configId,
+          previewOptions
+        );
+      } else {
+        throw new Error(`Unsupported provider: ${provider}`);
+      }
+
+      setPreviewData((prev) => ({ ...prev, [configId]: result.costs || [] }));
+    } catch (err) {
+      const errorMessage =
+        err instanceof Error ? err.message : "Failed to preview costs";
+      setErrors((prev) => ({ ...prev, [configId]: errorMessage }));
+      setPreviewData((prev) => ({ ...prev, [configId]: [] }));
+    } finally {
+      setPreviewing((prev) => ({ ...prev, [configId]: false }));
+    }
+  };
+
+  const handleSync = async (configId: string, provider: CloudProvider) => {
+    if (!organization?.id) {
+      alert("Organization not loaded");
+      return;
+    }
+
+    setSyncing((prev) => ({ ...prev, [configId]: true }));
+    setErrors((prev) => ({ ...prev, [configId]: "" }));
+
+    try {
+      const syncOptions = {
+        moduleId,
+        startDate: startDate ? new Date(startDate).toISOString() : undefined,
+        endDate: endDate ? new Date(endDate).toISOString() : undefined,
+      };
+
+      let result;
+      if (provider === "aws") {
+        result = await awsCostsAPI.sync(
+          organization.id,
+          productId,
+          configId,
+          syncOptions
+        );
+      } else if (provider === "azure") {
+        result = await azureCostsAPI.sync(
+          organization.id,
+          productId,
+          configId,
+          syncOptions
+        );
+      } else {
+        throw new Error(`Unsupported provider: ${provider}`);
+      }
+
+      setSyncResults((prev) => ({ ...prev, [configId]: result }));
+
       if (result.errors.length === 0) {
+        // Refresh the page data after successful sync
         setTimeout(() => {
           onSuccess();
-          onClose();
-        }, 2000);
+        }, 1500);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to sync costs");
+      const errorMessage =
+        err instanceof Error ? err.message : "Failed to sync costs";
+      setErrors((prev) => ({ ...prev, [configId]: errorMessage }));
     } finally {
-      setSyncing(false);
+      setSyncing((prev) => ({ ...prev, [configId]: false }));
     }
   };
 
@@ -364,81 +678,20 @@ export function CloudCostSyncModal({
               </AccordionContent>
             </AccordionItem>
           </Accordion>
-          {error && (
-            <div className="p-3 text-sm text-red-600 bg-red-50 rounded border border-red-200 dark:bg-red-950 dark:border-red-800 dark:text-red-400">
-              {error}
-            </div>
-          )}
-
-          {/* Provider Selection */}
-          <div>
-            <Label htmlFor="provider">Cloud Provider</Label>
-            <Select
-              value={provider}
-              onValueChange={(v) => {
-                setProvider(v as CloudProvider);
-                setSelectedConfigId("");
-                setPreviewData(null);
-              }}
-            >
-              <SelectTrigger id="provider">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="aws">AWS</SelectItem>
-                <SelectItem value="azure" disabled>
-                  Azure (Coming Soon)
-                </SelectItem>
-                <SelectItem value="gcp" disabled>
-                  GCP (Coming Soon)
-                </SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Configuration Selection */}
-          <div>
-            <Label htmlFor="config">Cloud Configuration *</Label>
-            <Select
-              value={selectedConfigId}
-              onValueChange={setSelectedConfigId}
-            >
-              <SelectTrigger id="config">
-                <SelectValue placeholder="Select a configuration" />
-              </SelectTrigger>
-              <SelectContent>
-                {configs.length === 0 ? (
-                  <div className="px-2 py-1.5 text-sm text-muted-foreground">
-                    No {provider.toUpperCase()} configurations found
-                  </div>
-                ) : (
-                  configs.map((config) => (
-                    <SelectItem key={config.id} value={config.id}>
-                      {config.name} {config.region && `(${config.region})`}{" "}
-                      {config.is_active && "✓"}
-                    </SelectItem>
-                  ))
-                )}
-              </SelectContent>
-            </Select>
-            {configs.length === 0 && (
-              <p className="mt-1 text-sm text-muted-foreground">
-                Go to Organization → Cloud Configurations to set up a
-                configuration. Make sure the configuration is for the{" "}
-                {provider.toUpperCase()} provider.
-              </p>
-            )}
-          </div>
-
-          {/* Date Range */}
-          <div className="grid grid-cols-2 gap-4">
+          {/* Date Range - Shared across all accounts */}
+          <div className="grid grid-cols-2 gap-4 p-4 bg-muted/50 rounded-lg">
             <div>
               <Label htmlFor="startDate">Start Date</Label>
               <Input
                 id="startDate"
                 type="date"
                 value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
+                onChange={(e) => {
+                  setStartDate(e.target.value);
+                  // Clear all previews when date changes
+                  setPreviewData({});
+                  setSyncResults({});
+                }}
               />
             </div>
             <div>
@@ -447,115 +700,140 @@ export function CloudCostSyncModal({
                 id="endDate"
                 type="date"
                 value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
+                onChange={(e) => {
+                  setEndDate(e.target.value);
+                  // Clear all previews when date changes
+                  setPreviewData({});
+                  setSyncResults({});
+                }}
               />
             </div>
           </div>
 
-          {/* Preview Section */}
-          {previewData && (
-            <div className="p-4 rounded-lg border">
-              <h4 className="mb-2 font-semibold">
-                Preview ({previewData.length} costs)
-              </h4>
-              <div className="overflow-y-auto max-h-60">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Name</TableHead>
-                      <TableHead>Amount</TableHead>
-                      <TableHead>Category</TableHead>
-                      <TableHead>Type</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {previewData.slice(0, 10).map((cost) => (
-                      <TableRow key={cost.id || cost.name}>
-                        <TableCell>{cost.name}</TableCell>
-                        <TableCell>
-                          {cost.currency} {cost.amount.toFixed(2)}
-                        </TableCell>
-                        <TableCell>{cost.category}</TableCell>
-                        <TableCell>{cost.cost_type}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-                {previewData.length > 10 && (
-                  <p className="mt-2 text-sm text-muted-foreground">
-                    ... and {previewData.length - 10} more
-                  </p>
-                )}
-              </div>
+          {/* Account Tabs */}
+          {loading ? (
+            <div className="flex items-center justify-center p-8">
+              <Loader2 className="h-6 w-6 animate-spin" />
+              <span className="ml-2">Loading configurations...</span>
             </div>
+          ) : awsConfigs.length === 0 && azureConfigs.length === 0 ? (
+            <div className="p-6 text-center border rounded-lg">
+              <Cloud className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+              <p className="text-muted-foreground mb-4">
+                No cloud configurations found. Go to Organization → Cloud
+                Configurations to set up AWS or Azure accounts.
+              </p>
+              <Link
+                href="/organization?tab=cloud-configs"
+                className="inline-flex gap-1 items-center text-blue-600 dark:text-blue-400 hover:underline"
+              >
+                Go to Cloud Configurations <ExternalLink className="w-4 h-4" />
+              </Link>
+            </div>
+          ) : (
+            <Tabs
+              defaultValue={
+                awsConfigs.length > 0
+                  ? `aws-${awsConfigs[0].id}`
+                  : `azure-${azureConfigs[0].id}`
+              }
+              className="w-full"
+            >
+              <TabsList className="grid w-full grid-cols-auto gap-2 h-auto p-1 overflow-x-auto">
+                {awsConfigs.map((config) => (
+                  <TabsTrigger
+                    key={`aws-${config.id}`}
+                    value={`aws-${config.id}`}
+                    className="flex items-center gap-2 text-xs"
+                  >
+                    <span className="font-semibold">AWS</span>
+                    <span className="truncate max-w-[120px]">
+                      {config.name}
+                    </span>
+                    {config.is_active && (
+                      <Badge variant="outline" className="text-xs px-1">
+                        Active
+                      </Badge>
+                    )}
+                  </TabsTrigger>
+                ))}
+                {azureConfigs.map((config) => (
+                  <TabsTrigger
+                    key={`azure-${config.id}`}
+                    value={`azure-${config.id}`}
+                    className="flex items-center gap-2 text-xs"
+                  >
+                    <span className="font-semibold">Azure</span>
+                    <span className="truncate max-w-[120px]">
+                      {config.name}
+                    </span>
+                    {config.is_active && (
+                      <Badge variant="outline" className="text-xs px-1">
+                        Active
+                      </Badge>
+                    )}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+
+              {/* AWS Account Tabs */}
+              {awsConfigs.map((config) => (
+                <TabsContent
+                  key={`aws-${config.id}`}
+                  value={`aws-${config.id}`}
+                  className="mt-4 space-y-4"
+                >
+                  <AccountSyncTab
+                    config={config}
+                    provider="aws"
+                    startDate={startDate}
+                    endDate={endDate}
+                    moduleId={moduleId}
+                    productId={productId}
+                    organizationId={organization?.id || ""}
+                    previewData={previewData[config.id] || []}
+                    isPreviewing={previewing[config.id] || false}
+                    isSyncing={syncing[config.id] || false}
+                    syncResult={syncResults[config.id]}
+                    error={errors[config.id]}
+                    onPreview={() => handlePreview(config.id, "aws")}
+                    onSync={() => handleSync(config.id, "aws")}
+                  />
+                </TabsContent>
+              ))}
+
+              {/* Azure Account Tabs */}
+              {azureConfigs.map((config) => (
+                <TabsContent
+                  key={`azure-${config.id}`}
+                  value={`azure-${config.id}`}
+                  className="mt-4 space-y-4"
+                >
+                  <AccountSyncTab
+                    config={config}
+                    provider="azure"
+                    startDate={startDate}
+                    endDate={endDate}
+                    moduleId={moduleId}
+                    productId={productId}
+                    organizationId={organization?.id || ""}
+                    previewData={previewData[config.id] || []}
+                    isPreviewing={previewing[config.id] || false}
+                    isSyncing={syncing[config.id] || false}
+                    syncResult={syncResults[config.id]}
+                    error={errors[config.id]}
+                    onPreview={() => handlePreview(config.id, "azure")}
+                    onSync={() => handleSync(config.id, "azure")}
+                  />
+                </TabsContent>
+              ))}
+            </Tabs>
           )}
 
-          {/* Sync Result */}
-          {syncResult && (
-            <div className="p-4 rounded-lg border">
-              <div className="flex gap-2 items-center mb-2">
-                {syncResult.errors.length === 0 ? (
-                  <CheckCircle2 className="w-5 h-5 text-green-500" />
-                ) : (
-                  <AlertCircle className="w-5 h-5 text-yellow-500" />
-                )}
-                <h4 className="font-semibold">Sync Complete</h4>
-              </div>
-              <div className="space-y-1 text-sm">
-                <p>Created: {syncResult.created_count}</p>
-                <p>Updated: {syncResult.updated_count}</p>
-                <p>Skipped: {syncResult.skipped_count}</p>
-                {syncResult.errors.length > 0 && (
-                  <div className="mt-2">
-                    <p className="font-semibold text-red-600 dark:text-red-400">
-                      Errors:
-                    </p>
-                    <ul className="list-disc list-inside">
-                      {syncResult.errors.slice(0, 5).map((err, idx) => (
-                        <li key={idx} className="text-xs">
-                          {err}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Actions */}
-          <div className="flex gap-2 justify-end">
+          {/* Close Button */}
+          <div className="flex justify-end pt-4 border-t">
             <Button type="button" variant="outline" onClick={onClose}>
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={handlePreview}
-              disabled={previewing || !selectedConfigId || syncing}
-            >
-              {previewing ? (
-                <>
-                  <Loader2 className="mr-2 w-4 h-4 animate-spin" />
-                  Previewing...
-                </>
-              ) : (
-                "Preview"
-              )}
-            </Button>
-            <Button
-              type="button"
-              onClick={handleSync}
-              disabled={syncing || !selectedConfigId || previewing}
-            >
-              {syncing ? (
-                <>
-                  <Loader2 className="mr-2 w-4 h-4 animate-spin" />
-                  Syncing...
-                </>
-              ) : (
-                "Sync Costs"
-              )}
+              Close
             </Button>
           </div>
         </div>
