@@ -3,6 +3,13 @@
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Sparkles, Loader2 } from 'lucide-react';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 interface FieldOption {
   options: string[];
@@ -185,7 +192,7 @@ export default function AIAssistant({
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            zIndex: 2000,
+            zIndex: 10000,
             padding: '16px',
           }}
           onClick={() => {
@@ -447,6 +454,43 @@ export default function AIAssistant({
                           <p style={{ marginTop: '4px', fontSize: '11px', color: '#666' }}>
                             Format: Number. Description (Target: value). Separate key results with blank lines.
                           </p>
+                        </div>
+                      );
+                    }
+                    
+                    // Check if this field has dropdown options
+                    const fieldOption = fieldOptions?.[key];
+                    if (fieldOption && fieldOption.options && Array.isArray(fieldOption.options)) {
+                      return (
+                        <div key={key} style={{ marginBottom: '16px' }}>
+                          <label style={{ 
+                            display: 'block', 
+                            marginBottom: '6px', 
+                            fontWeight: 600,
+                            fontSize: '13px',
+                            color: '#333',
+                            textTransform: 'capitalize',
+                          }}>
+                            {key.replace(/_/g, ' ')}
+                          </label>
+                          <Select
+                            value={String(value || '')}
+                            onValueChange={(newValue) => updateEditableField(key, newValue)}
+                          >
+                            <SelectTrigger style={{ width: '100%' }}>
+                              <SelectValue placeholder={`Select ${key.replace(/_/g, ' ')}`} />
+                            </SelectTrigger>
+                            <SelectContent className="z-[10001]">
+                              {fieldOption.options.map((option) => {
+                                const label = fieldOption.labels?.[option] || option;
+                                return (
+                                  <SelectItem key={option} value={option}>
+                                    {label}
+                                  </SelectItem>
+                                );
+                              })}
+                            </SelectContent>
+                          </Select>
                         </div>
                       );
                     }

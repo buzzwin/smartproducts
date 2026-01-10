@@ -29,6 +29,7 @@ SQLCostScenarioRepository = None
 SQLCostTypeRepository = None
 SQLFeatureRepository = None
 SQLResourceRepository = None
+SQLVendorRepository = None
 SQLInsightRepository = None
 SQLWorkstreamRepository = None
 SQLPhaseRepository = None
@@ -40,6 +41,7 @@ SQLDecisionRepository = None
 SQLReleaseRepository = None
 SQLStakeholderRepository = None
 SQLStatusReportRepository = None
+SQLFeatureReportRepository = None
 SQLMetricRepository = None
 SQLOutcomeRepository = None
 SQLPrioritizationModelRepository = None
@@ -51,6 +53,11 @@ SQLPricingTierRepository = None
 SQLUsageMetricRepository = None
 SQLNotificationRepository = None
 SQLModuleRepository = None
+SQLCloudConfigRepository = None
+SQLProcessedEmailRepository = None
+SQLEmailAccountRepository = None
+MongoDBProcessedEmailRepository = None
+MongoDBEmailAccountRepository = None
 init_sql_db = None
 
 if db_config.is_sql:
@@ -65,6 +72,7 @@ if db_config.is_sql:
             SQLCostTypeRepository,
             SQLFeatureRepository,
             SQLResourceRepository,
+            SQLVendorRepository,
             SQLInsightRepository,
             SQLWorkstreamRepository,
             SQLPhaseRepository,
@@ -76,6 +84,7 @@ if db_config.is_sql:
             SQLReleaseRepository,
             SQLStakeholderRepository,
             SQLStatusReportRepository,
+            SQLFeatureReportRepository,
             SQLMetricRepository,
             SQLOutcomeRepository,
             SQLPrioritizationModelRepository,
@@ -87,6 +96,9 @@ if db_config.is_sql:
             SQLUsageMetricRepository,
             SQLNotificationRepository,
             SQLModuleRepository,
+            SQLCloudConfigRepository,
+            SQLProcessedEmailRepository,
+            SQLEmailAccountRepository,
             init_db as init_sql_db,
         )
     except ImportError as e:
@@ -104,6 +116,7 @@ MongoDBCostScenarioRepository = None
 MongoDBCostTypeRepository = None
 MongoDBFeatureRepository = None
 MongoDBResourceRepository = None
+MongoDBVendorRepository = None
 MongoDBInsightRepository = None
 MongoDBWorkstreamRepository = None
 MongoDBPhaseRepository = None
@@ -125,6 +138,9 @@ MongoDBRevenueModelRepository = None
 MongoDBPricingTierRepository = None
 MongoDBUsageMetricRepository = None
 MongoDBNotificationRepository = None
+MongoDBCloudConfigRepository = None
+MongoDBProcessedEmailRepository = None
+MongoDBEmailAccountRepository = None
 init_mongodb = None
 
 if db_config.is_nosql:
@@ -138,6 +154,7 @@ if db_config.is_nosql:
             MongoDBCostTypeRepository,
             MongoDBFeatureRepository,
             MongoDBResourceRepository,
+            MongoDBVendorRepository,
             MongoDBInsightRepository,
             MongoDBWorkstreamRepository,
             MongoDBPhaseRepository,
@@ -149,6 +166,7 @@ if db_config.is_nosql:
             MongoDBReleaseRepository,
             MongoDBStakeholderRepository,
             MongoDBStatusReportRepository,
+            MongoDBFeatureReportRepository,
             MongoDBMetricRepository,
             MongoDBOutcomeRepository,
             MongoDBPrioritizationModelRepository,
@@ -160,6 +178,9 @@ if db_config.is_nosql:
             MongoDBUsageMetricRepository,
             MongoDBNotificationRepository,
             MongoDBModuleRepository,
+            MongoDBCloudConfigRepository,
+            MongoDBProcessedEmailRepository,
+            MongoDBEmailAccountRepository,
             init_mongodb,
         )
     except ImportError as e:
@@ -173,6 +194,7 @@ from .repositories.product_repository import ProductRepository
 from .repositories.cost_repository import CostRepository
 from .repositories.feature_repository import FeatureRepository
 from .repositories.resource_repository import ResourceRepository
+from .repositories.vendor_repository import VendorRepository
 from .repositories.insight_repository import InsightRepository
 from .repositories.workstream_repository import WorkstreamRepository
 from .repositories.phase_repository import PhaseRepository
@@ -184,6 +206,7 @@ from .repositories.decision_repository import DecisionRepository
 from .repositories.release_repository import ReleaseRepository
 from .repositories.stakeholder_repository import StakeholderRepository
 from .repositories.status_report_repository import StatusReportRepository
+from .repositories.feature_report_repository import FeatureReportRepository
 from .repositories.metric_repository import MetricRepository
 from .repositories.outcome_repository import OutcomeRepository
 from .repositories.prioritization_model_repository import PrioritizationModelRepository
@@ -194,6 +217,9 @@ from .repositories.pricing_tier_repository import PricingTierRepository
 from .repositories.usage_metric_repository import UsageMetricRepository
 from .repositories.notification_repository import NotificationRepository
 from .repositories.module_repository import ModuleRepository
+from .repositories.cloud_config_repository import CloudConfigRepository
+from .repositories.processed_email_repository import ProcessedEmailRepository
+from .repositories.email_account_repository import EmailAccountRepository
 
 
 # Global session for operations that don't use dependency injection
@@ -320,6 +346,21 @@ class RepositoryFactory:
                 raise ImportError("MongoDB repositories are not available. Install with: pip install motor pymongo")
             database = get_mongodb_database()
             return MongoDBResourceRepository(database)
+    
+    @staticmethod
+    def get_vendor_repository(session = None) -> VendorRepository:
+        """Get a vendor repository instance."""
+        if db_config.is_sql:
+            if SQLVendorRepository is None:
+                raise ImportError("SQLAlchemy repositories are not available. Install with: pip install sqlalchemy aiosqlite")
+            if session is None:
+                raise ValueError("Session is required for SQL databases. Use dependency injection or get_db_session_context().")
+            return SQLVendorRepository(session)
+        else:  # MongoDB
+            if get_mongodb_database is None:
+                raise ImportError("MongoDB repositories are not available. Install with: pip install motor pymongo")
+            database = get_mongodb_database()
+            return MongoDBVendorRepository(database)
     
     @staticmethod
     def get_insight_repository(session = None) -> InsightRepository:
@@ -487,6 +528,21 @@ class RepositoryFactory:
             return MongoDBStatusReportRepository(database)
     
     @staticmethod
+    def get_feature_report_repository(session = None) -> FeatureReportRepository:
+        """Get a feature report repository instance."""
+        if db_config.is_sql:
+            if SQLFeatureReportRepository is None:
+                raise ImportError("SQLAlchemy repositories are not available. Install with: pip install sqlalchemy aiosqlite")
+            if session is None:
+                raise ValueError("Session is required for SQL databases. Use dependency injection or get_db_session_context().")
+            return SQLFeatureReportRepository(session)
+        else:  # MongoDB
+            if get_mongodb_database is None:
+                raise ImportError("MongoDB repositories are not available. Install with: pip install motor pymongo")
+            database = get_mongodb_database()
+            return MongoDBFeatureReportRepository(database)
+    
+    @staticmethod
     def get_metric_repository(session = None) -> MetricRepository:
         """Get a metric repository instance."""
         if db_config.is_sql:
@@ -636,6 +692,7 @@ class RepositoryFactory:
             database = get_mongodb_database()
             return MongoDBNotificationRepository(database)
     
+    @staticmethod
     def get_module_repository(session = None) -> ModuleRepository:
         """Get a module repository instance."""
         if db_config.is_sql:
@@ -649,6 +706,51 @@ class RepositoryFactory:
                 raise ImportError("MongoDB repositories are not available. Install with: pip install motor pymongo")
             database = get_mongodb_database()
             return MongoDBModuleRepository(database)
+    
+    @staticmethod
+    def get_cloud_config_repository(session = None) -> CloudConfigRepository:
+        """Get a cloud config repository instance."""
+        if db_config.is_sql:
+            if SQLCloudConfigRepository is None:
+                raise ImportError("SQLAlchemy repositories are not available. Install with: pip install sqlalchemy aiosqlite")
+            if session is None:
+                raise ValueError("Session is required for SQL databases. Use dependency injection or get_db_session_context().")
+            return SQLCloudConfigRepository(session)
+        else:  # MongoDB
+            if MongoDBCloudConfigRepository is None:
+                raise ImportError("MongoDB repositories are not available. Install with: pip install motor pymongo")
+            database = get_mongodb_database()
+            return MongoDBCloudConfigRepository(database)
+    
+    @staticmethod
+    def get_processed_email_repository(session = None) -> ProcessedEmailRepository:
+        """Get a processed email repository instance."""
+        if db_config.is_sql:
+            if SQLProcessedEmailRepository is None:
+                raise ImportError("SQLAlchemy repositories are not available. Install with: pip install sqlalchemy aiosqlite")
+            if session is None:
+                raise ValueError("Session is required for SQL databases. Use dependency injection or get_db_session_context().")
+            return SQLProcessedEmailRepository(session)
+        else:  # MongoDB
+            if MongoDBProcessedEmailRepository is None:
+                raise ImportError("MongoDB repositories are not available. Install with: pip install motor pymongo")
+            database = get_mongodb_database()
+            return MongoDBProcessedEmailRepository(database)
+    
+    @staticmethod
+    def get_email_account_repository(session = None) -> EmailAccountRepository:
+        """Get an email account repository instance."""
+        if db_config.is_sql:
+            if SQLEmailAccountRepository is None:
+                raise ImportError("SQLAlchemy repositories are not available. Install with: pip install sqlalchemy aiosqlite")
+            if session is None:
+                raise ValueError("Session is required for SQL databases. Use dependency injection or get_db_session_context().")
+            return SQLEmailAccountRepository(session)
+        else:  # MongoDB
+            if MongoDBEmailAccountRepository is None:
+                raise ImportError("MongoDB repositories are not available. Install with: pip install motor pymongo")
+            database = get_mongodb_database()
+            return MongoDBEmailAccountRepository(database)
 
 
 async def init_database():

@@ -18,6 +18,7 @@ from ..models.sqlalchemy_models import (
     Insight as SQLInsight,
     Feature as SQLFeature,
     Resource as SQLResource,
+    Vendor as SQLVendor,
     Workstream as SQLWorkstream,
     Phase as SQLPhase,
     Task as SQLTask,
@@ -29,6 +30,7 @@ from ..models.sqlalchemy_models import (
     Roadmap as SQLRoadmap,
     Stakeholder as SQLStakeholder,
     StatusReport as SQLStatusReport,
+    FeatureReport as SQLFeatureReport,
     Metric as SQLMetric,
     Outcome as SQLOutcome,
     PrioritizationModel as SQLPrioritizationModel,
@@ -38,6 +40,9 @@ from ..models.sqlalchemy_models import (
     UsageMetric as SQLUsageMetric,
     Notification as SQLNotification,
     Module as SQLModule,
+    CloudConfig as SQLCloudConfig,
+    ProcessedEmail as SQLProcessedEmail,
+    EmailAccount as SQLEmailAccount,
 )
 from ..models.base_models import (
     Product,
@@ -49,6 +54,7 @@ from ..models.base_models import (
     Insight,
     Feature,
     Resource,
+    Vendor,
     Workstream,
     Phase,
     Task,
@@ -60,6 +66,7 @@ from ..models.base_models import (
     Roadmap,
     Stakeholder,
     StatusReport,
+    FeatureReport,
     Metric,
     Outcome,
     PrioritizationModel,
@@ -69,9 +76,15 @@ from ..models.base_models import (
     UsageMetric,
     Notification,
     Module,
+    CloudConfig,
+    ProcessedEmail,
+    EmailAccount,
 )
 from .base_repository import BaseRepository
 from .module_repository import ModuleRepository
+from .cloud_config_repository import CloudConfigRepository
+from .email_account_repository import EmailAccountRepository
+from .vendor_repository import VendorRepository
 
 T = TypeVar('T')
 
@@ -299,6 +312,17 @@ class SQLResourceRepository(SQLAlchemyRepository[Resource]):
         # Get all resources and filter in Python for JSON array compatibility
         all_resources = await self.get_all()
         return [r for r in all_resources if r.skills and skill in r.skills]
+
+
+class SQLVendorRepository(SQLAlchemyRepository[Vendor], VendorRepository):
+    """SQLAlchemy vendor repository."""
+    
+    def __init__(self, session: AsyncSession):
+        super().__init__(session, SQLVendor, Vendor)
+    
+    async def get_by_organization(self, organization_id: str) -> List[Vendor]:
+        """Get all vendors for an organization."""
+        return await self.find_by({"organization_id": organization_id})
 
 
 class SQLInsightRepository(SQLAlchemyRepository[Insight]):
@@ -567,6 +591,21 @@ class SQLStatusReportRepository(SQLAlchemyRepository[StatusReport]):
             return await self.find_by({"product_id": product_id, "module_id": module_id})
         else:
             return await self.find_by({"product_id": product_id, "module_id": None})
+
+
+class SQLFeatureReportRepository(SQLAlchemyRepository[FeatureReport]):
+    """SQLAlchemy feature report repository."""
+    
+    def __init__(self, session: AsyncSession):
+        super().__init__(session, SQLFeatureReport, FeatureReport)
+    
+    async def get_by_product(self, product_id: str) -> List[FeatureReport]:
+        """Get all feature reports for a product."""
+        return await self.find_by({"product_id": product_id})
+    
+    async def get_by_feature(self, feature_id: str) -> List[FeatureReport]:
+        """Get all feature reports for a feature."""
+        return await self.find_by({"feature_id": feature_id})
 
 
 class SQLMetricRepository(SQLAlchemyRepository[Metric]):
@@ -929,10 +968,6 @@ class SQLModuleRepository(SQLAlchemyRepository[Module], ModuleRepository):
             elif isinstance(val, str):
                 data['is_default'] = val.lower() in ('true', '1', 'yes')
         # Ensure list fields are lists, not None
-        if data.get('enabled_steps') is None:
-            data['enabled_steps'] = []
-        if data.get('step_order') is None:
-            data['step_order'] = []
         return self.domain_class(**data)
     
     def _to_db(self, domain_model: Module):
@@ -943,6 +978,75 @@ class SQLModuleRepository(SQLAlchemyRepository[Module], ModuleRepository):
         # Convert boolean fields to integers for SQLite
         if 'is_default' in data:
             data['is_default'] = 1 if data['is_default'] else 0
+        return self.model_class(**data)
+
+
+class SQLProcessedEmailRepository(SQLAlchemyRepository[ProcessedEmail]):
+    """SQLAlchemy processed email repository."""
+    
+    def __init__(self, session: AsyncSession):
+        super().__init__(session, SQLProcessedEmail, ProcessedEmail)
+    
+    def _to_domain(self, db_model) -> ProcessedEmail:
+        """Convert SQLAlchemy model to domain model, handling None values for dict fields."""
+        if db_model is None:
+            return None
+        data = {col.name: getattr(db_model, col.name) for col in db_model.__table__.columns}
+        # Convert None values to empty dict for suggested_data
+        if data.get('suggested_data') is None:
+            data['suggested_data'] = {}
+        return self.domain_class(**data)
+    
+    async def get_by_status(self, status: str) -> List[ProcessedEmail]:
+        """Get all processed emails with a specific status."""
+        return await self.find_by({"status": status})
+    
+    async def get_by_entity_type(self, entity_type: str) -> List[ProcessedEmail]:
+        """Get all processed emails with a specific entity type."""
+        return await self.find_by({"suggested_entity_type": entity_type})
+    
+    async def get_by_email_id(self, email_id: str) -> Optional[ProcessedEmail]:
+        """Get processed email by Gmail email ID."""
+        results = await self.find_by({"email_id": email_id})
+        return results[0] if results else None
+    
+    async def get_pending(self) -> List[ProcessedEmail]:
+        """Get all pending suggestions."""
+        return await self.get_by_status("pending")
+    
+    async def get_by_correlated_task(self, task_id: str) -> List[ProcessedEmail]:
+        """Get all emails correlated to a specific task."""
+        return await self.find_by({"correlated_task_id": task_id})
+
+
+class SQLCloudConfigRepository(SQLAlchemyRepository[CloudConfig], CloudConfigRepository):
+    """SQLAlchemy cloud config repository."""
+    
+    def __init__(self, session: AsyncSession):
+        super().__init__(session, SQLCloudConfig, CloudConfig)
+    
+    def _to_domain(self, db_model) -> CloudConfig:
+        """Convert SQLAlchemy model to domain model, handling boolean fields."""
+        if db_model is None:
+            return None
+        data = {col.name: getattr(db_model, col.name) for col in db_model.__table__.columns}
+        # Convert SQLite integer booleans to Python booleans
+        if 'is_active' in data:
+            val = data['is_active']
+            if isinstance(val, int):
+                data['is_active'] = bool(val)
+            elif isinstance(val, str):
+                data['is_active'] = val.lower() in ('true', '1', 'yes')
+        return self.domain_class(**data)
+    
+    def _to_db(self, domain_model: CloudConfig):
+        """Convert domain model to SQLAlchemy model, handling boolean fields."""
+        data = domain_model.model_dump(exclude={"id"} if domain_model.id is None else {})
+        if domain_model.id is None:
+            data["id"] = str(uuid.uuid4())
+        # Convert boolean fields to integers for SQLite
+        if 'is_active' in data:
+            data['is_active'] = 1 if data['is_active'] else 0
         return self.model_class(**data)
     
     async def get_by_product(self, product_id: str) -> List[Module]:
@@ -957,6 +1061,39 @@ class SQLModuleRepository(SQLAlchemyRepository[Module], ModuleRepository):
         """Get the default module for a product."""
         modules = await self.find_by({"product_id": product_id, "is_default": 1})  # SQLite uses 1 for True
         return modules[0] if modules else None
+
+
+class SQLEmailAccountRepository(SQLAlchemyRepository[EmailAccount], EmailAccountRepository):
+    """SQLAlchemy email account repository."""
+    
+    def __init__(self, session: AsyncSession):
+        super().__init__(session, SQLEmailAccount, EmailAccount)
+    
+    def _to_domain(self, db_model) -> EmailAccount:
+        """Convert SQLAlchemy model to domain model, handling boolean fields."""
+        if db_model is None:
+            return None
+        data = {col.name: getattr(db_model, col.name) for col in db_model.__table__.columns}
+        # Convert SQLite integer booleans to Python booleans
+        for bool_field in ['is_active', 'is_default']:
+            if bool_field in data:
+                val = data[bool_field]
+                if isinstance(val, int):
+                    data[bool_field] = bool(val)
+                elif isinstance(val, str):
+                    data[bool_field] = val.lower() in ('true', '1', 'yes')
+        return self.domain_class(**data)
+    
+    def _to_db(self, domain_model: EmailAccount):
+        """Convert domain model to SQLAlchemy model, handling boolean fields."""
+        data = domain_model.model_dump(exclude={"id"} if domain_model.id is None else {})
+        if domain_model.id is None:
+            data["id"] = str(uuid.uuid4())
+        # Convert boolean fields to integers for SQLite
+        for bool_field in ['is_active', 'is_default']:
+            if bool_field in data:
+                data[bool_field] = 1 if data[bool_field] else 0
+        return self.model_class(**data)
 
 
 # Database connection and session management
@@ -2215,8 +2352,6 @@ async def init_db():
                         description TEXT,
                         owner_id TEXT,
                         is_default INTEGER NOT NULL DEFAULT 0,
-                        enabled_steps TEXT NOT NULL DEFAULT '[]',
-                        step_order TEXT NOT NULL DEFAULT '[]',
                         layout_config TEXT,
                         settings TEXT,
                         created_at DATETIME NOT NULL,
@@ -2233,6 +2368,42 @@ async def init_db():
                 )
                 await conn.execute(
                     text("CREATE INDEX IF NOT EXISTS ix_modules_name ON modules(name)")
+                )
+            
+            # Create cloud_configs table if it doesn't exist
+            result = await conn.execute(
+                text("SELECT name FROM sqlite_master WHERE type='table' AND name='cloud_configs'")
+            )
+            cloud_configs_exists = result.fetchone() is not None
+            
+            if not cloud_configs_exists:
+                await conn.execute(
+                    text("""
+                    CREATE TABLE IF NOT EXISTS cloud_configs (
+                        id TEXT NOT NULL PRIMARY KEY,
+                        organization_id TEXT NOT NULL,
+                        provider TEXT NOT NULL,
+                        name TEXT NOT NULL,
+                        is_active INTEGER NOT NULL DEFAULT 1,
+                        credentials_encrypted TEXT NOT NULL,
+                        region TEXT,
+                        account_id TEXT,
+                        last_synced_at DATETIME,
+                        last_sync_status TEXT,
+                        last_sync_error TEXT,
+                        created_at DATETIME NOT NULL,
+                        updated_at DATETIME NOT NULL
+                    )
+                    """)
+                )
+                await conn.execute(
+                    text("CREATE INDEX IF NOT EXISTS ix_cloud_configs_organization_id ON cloud_configs(organization_id)")
+                )
+                await conn.execute(
+                    text("CREATE INDEX IF NOT EXISTS ix_cloud_configs_provider ON cloud_configs(provider)")
+                )
+                await conn.execute(
+                    text("CREATE INDEX IF NOT EXISTS ix_cloud_configs_is_active ON cloud_configs(is_active)")
                 )
             
             # Add module_id to capabilities table if it doesn't exist

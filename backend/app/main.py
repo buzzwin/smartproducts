@@ -10,13 +10,15 @@ if str(backend_dir) not in sys.path:
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.routers import (
-    products, costs, unified_costs, scenarios, csv_import, features, resources,
+    products, costs, unified_costs, scenarios, csv_import, features, resources, vendors,
     workstreams, phases, tasks, strategies, problems, interviews, decisions, releases,
-    stakeholders, status_reports, metrics, outcomes, insights, product_context,
+    stakeholders, status_reports, feature_reports, metrics, outcomes, insights, product_context,
     prioritization_models, priority_scores, roadmaps, revenue_models, pricing_tiers,
-    usage_metrics, notifications, modules
+    usage_metrics, notifications, modules, cloud_configs, aws_costs, azure_costs, gmail, email_agent,
+    email_accounts
 )
 from database.database import init_database
+from app.services.scheduler import get_email_scheduler
 
 app = FastAPI(
     title="SmartProducts Platform API",
@@ -41,6 +43,7 @@ app.include_router(unified_costs.router)  # New unified Cost model
 app.include_router(scenarios.router)
 app.include_router(features.router)
 app.include_router(resources.router)
+app.include_router(vendors.router)
 app.include_router(workstreams.router)
 app.include_router(phases.router)
 app.include_router(tasks.router)
@@ -52,6 +55,7 @@ app.include_router(decisions.router)
 app.include_router(releases.router)
 app.include_router(stakeholders.router)
 app.include_router(status_reports.router)
+app.include_router(feature_reports.router)
 app.include_router(metrics.router)
 app.include_router(outcomes.router)
 app.include_router(prioritization_models.router)
@@ -63,12 +67,28 @@ app.include_router(usage_metrics.router)
 app.include_router(notifications.router)
 app.include_router(modules.router)
 app.include_router(csv_import.router)
+app.include_router(cloud_configs.router)
+app.include_router(aws_costs.router)
+app.include_router(azure_costs.router)
+app.include_router(gmail.router)
+app.include_router(email_agent.router)
+app.include_router(email_accounts.router)
 
 
 @app.on_event("startup")
 async def startup_event():
-    """Initialize database on startup."""
+    """Initialize database and services on startup."""
     await init_database()
+    # Start email scheduler
+    scheduler = get_email_scheduler()
+    scheduler.start()
+
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Cleanup on shutdown."""
+    scheduler = get_email_scheduler()
+    scheduler.stop()
 
 
 @app.get("/")

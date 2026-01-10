@@ -162,3 +162,104 @@ async def get_metrics_analytics(
         "metrics": [MetricResponse(**m.model_dump()).model_dump() for m in metrics]
     }
 
+
+@router.get("/summary/counts", response_model=Dict[str, Any])
+async def get_metrics_summary_counts(
+    product_id: str = Query(..., description="Product ID"),
+    module_id: Optional[str] = Query(None, description="Optional module ID for module-level view"),
+    session: AsyncSession = Depends(get_db_session)
+):
+    """
+    Get aggregated counts of problems, features, and tasks with status breakdowns.
+    If module_id is provided, returns module-level counts. Otherwise returns product-level counts.
+    """
+    problem_repo = RepositoryFactory.get_problem_repository(session)
+    feature_repo = RepositoryFactory.get_feature_repository(session)
+    task_repo = RepositoryFactory.get_task_repository(session)
+    module_repo = RepositoryFactory.get_module_repository(session)
+    
+    # Get all modules for the product
+    all_modules = await module_repo.get_by_product(product_id)
+    
+    # Get data based on scope
+    if module_id:
+        # Module-level view
+        problems = await problem_repo.get_by_module(module_id)
+        features = await feature_repo.get_by_module(module_id)
+        tasks = await task_repo.get_by_module(module_id)
+        
+        # Get module info
+        module = await module_repo.get_by_id(module_id)
+        module_name = module.name if module else None
+        
+        # Task status breakdown
+        task_status_counts = {
+            "todo": len([t for t in tasks if t.status == "todo"]),
+            "in_progress": len([t for t in tasks if t.status == "in_progress"]),
+            "blocked": len([t for t in tasks if t.status == "blocked"]),
+            "done": len([t for t in tasks if t.status == "done"]),
+        }
+        
+        return {
+            "scope": "module",
+            "module_id": module_id,
+            "module_name": module_name,
+            "product_id": product_id,
+            "counts": {
+                "problems": len(problems),
+                "features": len(features),
+                "tasks": len(tasks),
+            },
+            "task_status": task_status_counts,
+        }
+    else:
+        # Product-level view with module breakdown
+        all_problems = await problem_repo.get_by_product(product_id)
+        all_features = await feature_repo.get_by_product(product_id)
+        all_tasks = await task_repo.get_by_product(product_id)
+        
+        # Task status breakdown for entire product
+        task_status_counts = {
+            "todo": len([t for t in all_tasks if t.status == "todo"]),
+            "in_progress": len([t for t in all_tasks if t.status == "in_progress"]),
+            "blocked": len([t for t in all_tasks if t.status == "blocked"]),
+            "done": len([t for t in all_tasks if t.status == "done"]),
+        }
+        
+        # Module-level breakdowns
+        module_breakdowns = []
+        for module in all_modules:
+            module_problems = [p for p in all_problems if p.module_id == module.id]
+            module_features = [f for f in all_features if f.module_id == module.id]
+            module_tasks = [t for t in all_tasks if t.module_id == module.id]
+            
+            module_task_status = {
+                "todo": len([t for t in module_tasks if t.status == "todo"]),
+                "in_progress": len([t for t in module_tasks if t.status == "in_progress"]),
+                "blocked": len([t for t in module_tasks if t.status == "blocked"]),
+                "done": len([t for t in module_tasks if t.status == "done"]),
+            }
+            
+            module_breakdowns.append({
+                "module_id": module.id,
+                "module_name": module.name,
+                "counts": {
+                    "problems": len(module_problems),
+                    "features": len(module_features),
+                    "tasks": len(module_tasks),
+                },
+                "task_status": module_task_status,
+            })
+        
+        return {
+            "scope": "product",
+            "product_id": product_id,
+            "counts": {
+                "problems": len(all_problems),
+                "features": len(all_features),
+                "tasks": len(all_tasks),
+            },
+            "task_status": task_status_counts,
+            "modules": module_breakdowns,
+        }
+

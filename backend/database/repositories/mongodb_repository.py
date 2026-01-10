@@ -1,11 +1,23 @@
 """MongoDB repository implementation."""
 import uuid
+import logging
 from datetime import datetime
 from typing import Generic, TypeVar, Optional, List, Dict, Any
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
 from pymongo import ASCENDING
 
 from ..config import db_config
+
+logger = logging.getLogger(__name__)
+
+
+def _safe_create_index(collection, index_spec, **kwargs):
+    """Safely create an index, catching and logging errors without failing."""
+    try:
+        collection.create_index(index_spec, **kwargs)
+    except Exception as e:
+        logger.warning(f"Failed to create index {index_spec} on {collection.name}: {e}")
+        # Don't raise - allow application to continue even if index creation fails
 from ..models.base_models import (
     Product,
     CostCategory,
@@ -16,6 +28,7 @@ from ..models.base_models import (
     Insight,
     Feature,
     Resource,
+    Vendor,
     Workstream,
     Phase,
     Task,
@@ -27,6 +40,7 @@ from ..models.base_models import (
     Roadmap,
     Stakeholder,
     StatusReport,
+    FeatureReport,
     Metric,
     Outcome,
     PrioritizationModel,
@@ -36,8 +50,15 @@ from ..models.base_models import (
     UsageMetric,
     Notification,
     Module,
+    CloudConfig,
+    ProcessedEmail,
+    EmailAccount,
 )
 from .base_repository import BaseRepository
+from .cloud_config_repository import CloudConfigRepository
+from .processed_email_repository import ProcessedEmailRepository
+from .email_account_repository import EmailAccountRepository
+from .vendor_repository import VendorRepository
 
 T = TypeVar('T')
 
@@ -124,7 +145,7 @@ class MongoDBProductRepository(MongoDBRepository[Product]):
     def __init__(self, database: AsyncIOMotorDatabase):
         super().__init__(database, "products", Product)
         # Create index on name
-        database["products"].create_index([("name", ASCENDING)], unique=True)
+        _safe_create_index(database["products"], [("name", ASCENDING)], unique=True)
     
     async def get_by_name(self, name: str) -> Optional[Product]:
         """Get a product by name."""
@@ -676,6 +697,24 @@ class MongoDBStatusReportRepository(MongoDBRepository[StatusReport]):
             return await self.find_by({"product_id": product_id, "module_id": None})
 
 
+class MongoDBFeatureReportRepository(MongoDBRepository[FeatureReport]):
+    """MongoDB feature report repository."""
+    
+    def __init__(self, database: AsyncIOMotorDatabase):
+        super().__init__(database, "feature_reports", FeatureReport)
+        # Create indexes
+        database["feature_reports"].create_index([("product_id", ASCENDING)])
+        database["feature_reports"].create_index([("feature_id", ASCENDING)])
+    
+    async def get_by_product(self, product_id: str) -> List[FeatureReport]:
+        """Get all feature reports for a product."""
+        return await self.find_by({"product_id": product_id})
+    
+    async def get_by_feature(self, feature_id: str) -> List[FeatureReport]:
+        """Get all feature reports for a feature."""
+        return await self.find_by({"feature_id": feature_id})
+
+
 class MongoDBMetricRepository(MongoDBRepository[Metric]):
     """MongoDB metric repository."""
     
@@ -959,6 +998,87 @@ class MongoDBNotificationRepository(MongoDBRepository[Notification]):
             await self.update(notification_id, notification)
             return True
         return False
+
+
+class MongoDBProcessedEmailRepository(MongoDBRepository[ProcessedEmail], ProcessedEmailRepository):
+    """MongoDB processed email repository."""
+    
+    def __init__(self, database: AsyncIOMotorDatabase):
+        super().__init__(database, "processed_emails", ProcessedEmail)
+        # Create indexes
+        database["processed_emails"].create_index([("email_id", ASCENDING)], unique=True)
+        database["processed_emails"].create_index([("thread_id", ASCENDING)])
+        database["processed_emails"].create_index([("status", ASCENDING)])
+        database["processed_emails"].create_index([("suggested_entity_type", ASCENDING)])
+        database["processed_emails"].create_index([("received_date", ASCENDING)])
+        database["processed_emails"].create_index([("created_entity_id", ASCENDING)])
+        database["processed_emails"].create_index([("correlated_task_id", ASCENDING)])
+    
+    async def get_by_status(self, status: str) -> List[ProcessedEmail]:
+        """Get all processed emails with a specific status."""
+        return await self.find_by({"status": status})
+    
+    async def get_by_entity_type(self, entity_type: str) -> List[ProcessedEmail]:
+        """Get all processed emails with a specific entity type."""
+        return await self.find_by({"suggested_entity_type": entity_type})
+    
+    async def get_by_email_id(self, email_id: str) -> Optional[ProcessedEmail]:
+        """Get processed email by Gmail email ID."""
+        results = await self.find_by({"email_id": email_id})
+        return results[0] if results else None
+    
+    async def get_pending(self) -> List[ProcessedEmail]:
+        """Get all pending suggestions."""
+        return await self.get_by_status("pending")
+    
+    async def get_by_correlated_task(self, task_id: str) -> List[ProcessedEmail]:
+        """Get all emails correlated to a specific task."""
+        return await self.find_by({"correlated_task_id": task_id})
+
+
+class MongoDBVendorRepository(MongoDBRepository[Vendor], VendorRepository):
+    """MongoDB vendor repository."""
+    
+    def __init__(self, database: AsyncIOMotorDatabase):
+        super().__init__(database, "vendors", Vendor)
+        # Create indexes
+        _safe_create_index(database["vendors"], [("name", ASCENDING)])
+        _safe_create_index(database["vendors"], [("organization_id", ASCENDING)])
+        _safe_create_index(database["vendors"], [("organization_id", ASCENDING), ("name", ASCENDING)])
+    
+    # VendorRepository methods are already implemented via find_by in base class
+    # The interface methods use find_by internally, so they work automatically
+
+
+class MongoDBCloudConfigRepository(MongoDBRepository[CloudConfig], CloudConfigRepository):
+    """MongoDB cloud configuration repository."""
+    
+    def __init__(self, database: AsyncIOMotorDatabase):
+        super().__init__(database, "cloud_configs", CloudConfig)
+        # Create indexes
+        database["cloud_configs"].create_index([("organization_id", ASCENDING)])
+        database["cloud_configs"].create_index([("provider", ASCENDING)])
+        database["cloud_configs"].create_index([("is_active", ASCENDING)])
+        database["cloud_configs"].create_index([("organization_id", ASCENDING), ("provider", ASCENDING)])
+    
+    # CloudConfigRepository methods are already implemented via find_by in base class
+    # The interface methods use find_by internally, so they work automatically
+
+
+class MongoDBEmailAccountRepository(MongoDBRepository[EmailAccount], EmailAccountRepository):
+    """MongoDB email account repository."""
+    
+    def __init__(self, database: AsyncIOMotorDatabase):
+        super().__init__(database, "email_accounts", EmailAccount)
+        # Create indexes
+        database["email_accounts"].create_index([("user_id", ASCENDING)])
+        database["email_accounts"].create_index([("email", ASCENDING)])
+        database["email_accounts"].create_index([("is_active", ASCENDING)])
+        database["email_accounts"].create_index([("is_default", ASCENDING)])
+        database["email_accounts"].create_index([("user_id", ASCENDING), ("is_default", ASCENDING)])
+    
+    # EmailAccountRepository methods are already implemented via find_by in base class
+    # The interface methods use find_by internally, so they work automatically
 
 
 # MongoDB connection management

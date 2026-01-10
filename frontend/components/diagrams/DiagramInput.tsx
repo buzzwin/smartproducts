@@ -4,8 +4,7 @@ import { useState, useEffect } from "react";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { Eye, EyeOff, Edit, Code, Sparkles } from "lucide-react";
-import DrawIORenderer from "./DrawIORenderer";
+import { Edit, Code, Sparkles } from "lucide-react";
 import DrawIOEditor from "./DrawIOEditor";
 import AIAssistant from "../AIAssistant";
 
@@ -23,7 +22,6 @@ export default function DiagramInput({
   const [editorMode, setEditorMode] = useState<"textarea" | "editor">(
     "textarea"
   );
-  const [showPreview, setShowPreview] = useState(false);
   const [xmlError, setXmlError] = useState<string | null>(null);
   const [editorXml, setEditorXml] = useState(value);
 
@@ -211,9 +209,10 @@ export default function DiagramInput({
       setEditorMode("editor");
     } else {
       // Switching to textarea mode - sync editor value to textarea
-      // Use editorXml if it exists and is different, otherwise use current value
-      const valueToUse = editorXml && editorXml !== value ? editorXml : value;
-      if (valueToUse !== value) {
+      // The editorXml should already be up-to-date from autosave/save events
+      // But we'll use it if it exists and is different from current value
+      const valueToUse = editorXml && editorXml.trim() ? editorXml : value;
+      if (valueToUse !== value && valueToUse.trim()) {
         onChange(valueToUse);
       }
       setEditorMode("textarea");
@@ -263,27 +262,6 @@ export default function DiagramInput({
                 </>
               )}
             </Button>
-            {value && value.trim() && editorMode === "textarea" && (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => setShowPreview(!showPreview)}
-                className="flex items-center gap-2"
-              >
-                {showPreview ? (
-                  <>
-                    <EyeOff className="h-4 w-4" />
-                    Hide Preview
-                  </>
-                ) : (
-                  <>
-                    <Eye className="h-4 w-4" />
-                    Show Preview
-                  </>
-                )}
-              </Button>
-            )}
           </div>
         </div>
 
@@ -322,12 +300,6 @@ export default function DiagramInput({
           </div>
         )}
       </div>
-
-      {showPreview && value && value.trim() && editorMode === "textarea" && (
-        <div className="mt-4">
-          <DrawIORenderer xmlContent={value} />
-        </div>
-      )}
     </div>
   );
 }

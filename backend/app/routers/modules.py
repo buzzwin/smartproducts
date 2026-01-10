@@ -80,15 +80,21 @@ async def update_module(
     if not existing:
         raise HTTPException(status_code=404, detail="Module not found")
     
+    # Handle product_id update (to fix orphaned modules)
+    if module.product_id is not None:
+        existing.product_id = module.product_id
+    
     # If setting as default, unset other defaults for the same product
-    if module.is_default is True and existing.product_id:
-        existing_default = await repo.get_default(existing.product_id)
+    # Use the new product_id if it was updated, otherwise use existing
+    product_id_for_default_check = existing.product_id if module.product_id is not None else existing.product_id
+    if module.is_default is True and product_id_for_default_check:
+        existing_default = await repo.get_default(product_id_for_default_check)
         if existing_default and existing_default.id != module_id:
             existing_default.is_default = False
             await repo.update(existing_default.id, existing_default)
     
     # Update fields
-    update_data = module.model_dump(exclude_unset=True)
+    update_data = module.model_dump(exclude_unset=True, exclude={"product_id"})  # Exclude product_id as we handle it separately
     for key, value in update_data.items():
         setattr(existing, key, value)
     

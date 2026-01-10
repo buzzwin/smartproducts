@@ -53,7 +53,7 @@ export default function ResourceForm({ resource, onSuccess, onCancel }: Resource
         description: description || undefined,
       };
 
-      if (resource) {
+      if (resource?.id) {
         await resourcesAPI.update(resource.id, resourceData);
       } else {
         await resourcesAPI.create(resourceData);
@@ -66,9 +66,21 @@ export default function ResourceForm({ resource, onSuccess, onCancel }: Resource
     }
   };
 
+  const isEditing = resource?.id ? true : false;
+
   return (
-    <form onSubmit={handleSubmit} style={{ padding: '20px' }}>
-      <h3 style={{ marginBottom: '20px' }}>{resource ? 'Edit Resource' : 'Create Resource'}</h3>
+    <div 
+      style={{ position: 'relative', zIndex: 10001 }}
+      onClick={(e) => e.stopPropagation()}
+      onMouseDown={(e) => e.stopPropagation()}
+    >
+      <form 
+        onSubmit={handleSubmit} 
+        style={{ padding: '20px' }}
+        onClick={(e) => e.stopPropagation()}
+        onMouseDown={(e) => e.stopPropagation()}
+      >
+        <h3 style={{ marginBottom: '20px' }}>{isEditing ? 'Edit Resource' : 'Create Resource'}</h3>
       
       {error && (
         <div className="error" style={{ marginBottom: '16px', padding: '12px', backgroundColor: '#f8d7da', color: '#721c24', borderRadius: '4px' }}>
@@ -85,11 +97,11 @@ export default function ResourceForm({ resource, onSuccess, onCancel }: Resource
           value={name}
           onChange={(e) => setName(e.target.value)}
           required
+          className="w-full px-3 py-2 text-sm border border-input bg-background text-foreground rounded-md focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
           style={{
             width: '100%',
             padding: '8px 12px',
             fontSize: '14px',
-            border: '1px solid #ddd',
             borderRadius: '4px',
           }}
         />
@@ -103,12 +115,15 @@ export default function ResourceForm({ resource, onSuccess, onCancel }: Resource
           value={type}
           onChange={(e) => setType(e.target.value as ResourceType)}
           required
+          onClick={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
+          className="w-full px-3 py-2 text-sm border border-input bg-background text-foreground rounded-md cursor-pointer focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
           style={{
             width: '100%',
             padding: '8px 12px',
             fontSize: '14px',
-            border: '1px solid #ddd',
             borderRadius: '4px',
+            cursor: 'pointer',
           }}
         >
           <option value="individual">Individual</option>
@@ -127,17 +142,22 @@ export default function ResourceForm({ resource, onSuccess, onCancel }: Resource
             onChange={(e) => setSkillInput(e.target.value)}
             onKeyDown={handleSkillInputKeyDown}
             placeholder="Add a skill and press Enter"
+            className="flex-1 px-3 py-2 text-sm border border-input bg-background text-foreground rounded-md focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
             style={{
               flex: 1,
               padding: '8px 12px',
               fontSize: '14px',
-              border: '1px solid #ddd',
               borderRadius: '4px',
             }}
           />
           <button
             type="button"
-            onClick={handleAddSkill}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              handleAddSkill();
+            }}
+            onMouseDown={(e) => e.stopPropagation()}
             disabled={!skillInput.trim()}
             style={{
               padding: '8px 16px',
@@ -171,7 +191,12 @@ export default function ResourceForm({ resource, onSuccess, onCancel }: Resource
                 {skill}
                 <button
                   type="button"
-                  onClick={() => handleRemoveSkill(skill)}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    handleRemoveSkill(skill);
+                  }}
+                  onMouseDown={(e) => e.stopPropagation()}
                   style={{
                     background: 'none',
                     border: 'none',
@@ -200,11 +225,11 @@ export default function ResourceForm({ resource, onSuccess, onCancel }: Resource
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           placeholder="email@example.com"
+          className="w-full px-3 py-2 text-sm border border-input bg-background text-foreground rounded-md focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
           style={{
             width: '100%',
             padding: '8px 12px',
             fontSize: '14px',
-            border: '1px solid #ddd',
             borderRadius: '4px',
           }}
         />
@@ -218,11 +243,11 @@ export default function ResourceForm({ resource, onSuccess, onCancel }: Resource
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           rows={4}
+          className="w-full px-3 py-2 text-sm border border-input bg-background text-foreground rounded-md resize-vertical focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
           style={{
             width: '100%',
             padding: '8px 12px',
             fontSize: '14px',
-            border: '1px solid #ddd',
             borderRadius: '4px',
             resize: 'vertical',
           }}
@@ -232,7 +257,12 @@ export default function ResourceForm({ resource, onSuccess, onCancel }: Resource
       <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
         <button
           type="button"
-          onClick={onCancel}
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onCancel();
+          }}
+          onMouseDown={(e) => e.stopPropagation()}
           disabled={loading}
           style={{
             padding: '10px 20px',
@@ -249,6 +279,8 @@ export default function ResourceForm({ resource, onSuccess, onCancel }: Resource
         <button
           type="submit"
           disabled={loading || !name.trim()}
+          onClick={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
           style={{
             padding: '10px 20px',
             fontSize: '14px',
@@ -259,10 +291,11 @@ export default function ResourceForm({ resource, onSuccess, onCancel }: Resource
             cursor: loading || !name.trim() ? 'not-allowed' : 'pointer',
           }}
         >
-          {loading ? 'Saving...' : resource ? 'Update' : 'Create'}
+          {loading ? 'Saving...' : isEditing ? 'Update Resource' : 'Add Resource'}
         </button>
       </div>
     </form>
+    </div>
   );
 }
 

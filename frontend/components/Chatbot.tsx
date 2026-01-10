@@ -21,6 +21,13 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Card,
   CardContent,
   CardDescription,
@@ -54,6 +61,7 @@ import TaskForm from "./TaskForm";
 import FeatureForm from "./FeatureForm";
 import ProductForm from "./ProductForm";
 import ProblemForm from "./discovery/ProblemForm";
+import ResourceForm from "./ResourceForm";
 
 interface Message {
   role: "user" | "assistant";
@@ -66,6 +74,7 @@ interface ExtractedEntity {
   data: Record<string, any>;
   confidence: number;
   id?: string; // For tracking in preview
+  possibleTypes?: string[]; // Alternative entity types if uncertain
 }
 
 interface ChatbotProps {
@@ -97,10 +106,19 @@ export default function Chatbot({
   const [phases, setPhases] = useState<Phase[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [features, setFeatures] = useState<Feature[]>([]);
+  const [modules, setModules] = useState<Module[]>([]);
   const [resources, setResources] = useState<Resource[]>([]);
   const [editingEntity, setEditingEntity] = useState<ExtractedEntity | null>(
     null
   );
+  // Selected context for AI assistant
+  const [selectedProductId, setSelectedProductId] = useState<string>(
+    productId || ""
+  );
+  const [selectedModuleId, setSelectedModuleId] = useState<string>(
+    moduleId || ""
+  );
+  const [selectedFeatureId, setSelectedFeatureId] = useState<string>("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -117,15 +135,28 @@ export default function Chatbot({
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // Load phases and other data when chatbot opens
+  // Sync props with selected state when they change
+  useEffect(() => {
+    if (productId && productId !== selectedProductId) {
+      setSelectedProductId(productId);
+    }
+    if (moduleId && moduleId !== selectedModuleId) {
+      setSelectedModuleId(moduleId);
+    }
+  }, [productId, moduleId]);
+
+  // Load phases and other data when chatbot opens - optimized to load all data upfront
   useEffect(() => {
     if (open) {
-      loadPhases();
-      if (productId) {
-        loadProductData();
-      }
+      // Load all data in parallel for better performance
+      Promise.all([
+        loadPhases(),
+        loadProductData(), // Load all products, not just for specific productId
+      ]).catch((err) => {
+        console.error("Failed to load initial data:", err);
+      });
     }
-  }, [open, productId]);
+  }, [open]);
 
   const loadPhases = async () => {
     try {
@@ -138,20 +169,108 @@ export default function Chatbot({
 
   const loadProductData = async () => {
     try {
-      const [productsData, featuresData, resourcesData] = await Promise.all([
+      // Load all products and resources upfront for better UX
+      const [productsData, resourcesData] = await Promise.all([
         productsAPI.getAll(),
-        productId
-          ? featuresAPI.getAll({ product_id: productId })
-          : Promise.resolve([]),
         resourcesAPI.getAll(),
       ]);
       setProducts(productsData);
-      setFeatures(featuresData);
       setResources(resourcesData);
+
+      // Load modules and features if productId is available
+      if (productId || selectedProductId) {
+        const prodId = selectedProductId || productId;
+        if (prodId) {
+          try {
+            const [modulesData, featuresData] = await Promise.all([
+              modulesAPI.getByProduct(prodId),
+              featuresAPI.getAll({ product_id: prodId }),
+            ]);
+            setModules(modulesData);
+            setFeatures(featuresData);
+          } catch (err) {
+            console.error("Failed to load modules/features:", err);
+            setModules([]);
+            setFeatures([]);
+          }
+        }
+      }
     } catch (err) {
       console.error("Failed to load product data:", err);
     }
   };
+
+  // Load modules when product is selected
+  const loadModulesForProduct = async (prodId: string) => {
+    if (!prodId) {
+      setModules([]);
+      setFeatures([]);
+      setSelectedModuleId("");
+      setSelectedFeatureId("");
+      return;
+    }
+    try {
+      const modulesData = await modulesAPI.getByProduct(prodId);
+      setModules(modulesData);
+      // Reset module and feature selection when product changes
+      setSelectedModuleId("");
+      setSelectedFeatureId("");
+      setFeatures([]);
+    } catch (err) {
+      console.error("Failed to load modules:", err);
+      setModules([]);
+    }
+  };
+
+  // Load features when module is selected
+  const loadFeaturesForModule = async (prodId: string, modId: string) => {
+    if (!prodId || !modId) {
+      if (!modId) {
+        // If no module, load all features for product
+        try {
+          const featuresData = await featuresAPI.getAll({ product_id: prodId });
+          setFeatures(featuresData);
+        } catch (err) {
+          console.error("Failed to load features:", err);
+          setFeatures([]);
+        }
+      }
+      setSelectedFeatureId("");
+      return;
+    }
+    try {
+      const featuresData = await featuresAPI.getAll({
+        product_id: prodId,
+        module_id: modId,
+      });
+      setFeatures(featuresData);
+      // Reset feature selection when module changes
+      setSelectedFeatureId("");
+    } catch (err) {
+      console.error("Failed to load features:", err);
+      setFeatures([]);
+    }
+  };
+
+  // Handle product selection change
+  useEffect(() => {
+    if (selectedProductId) {
+      loadModulesForProduct(selectedProductId);
+    } else {
+      setModules([]);
+      setFeatures([]);
+    }
+  }, [selectedProductId]);
+
+  // Handle module selection change
+  useEffect(() => {
+    if (selectedProductId && selectedModuleId) {
+      loadFeaturesForModule(selectedProductId, selectedModuleId);
+    } else if (selectedProductId && !selectedModuleId) {
+      // Load all features for product if no module selected
+      loadFeaturesForModule(selectedProductId, "");
+    }
+  }, [selectedModuleId, selectedProductId]);
 
   // Match phase reference to actual phase
   const matchPhase = (phaseRef: string): Phase | null => {
@@ -260,7 +379,9 @@ export default function Chatbot({
         body: JSON.stringify({
           message: input.trim(),
           conversationHistory: messages.slice(-5), // Last 5 messages for context
-          productId,
+          productId: selectedProductId || productId,
+          moduleId: selectedModuleId || moduleId,
+          featureId: selectedFeatureId,
         }),
       });
 
@@ -502,7 +623,52 @@ export default function Chatbot({
   };
 
   const handleEdit = (entity: ExtractedEntity) => {
+    // Load features if editing a task/feature and product_id is available
+    if (
+      (entity.entityType === "task" || entity.entityType === "feature") &&
+      entity.data.product_id
+    ) {
+      // Load features for the product if not already loaded
+      loadFeaturesForModule(
+        entity.data.product_id,
+        entity.data.module_id || ""
+      );
+    }
     setEditingEntity(entity);
+  };
+
+  const handleEntityTypeChange = (entityId: string, newType: string) => {
+    setPreviewEntities((prev) =>
+      prev.map((entity) =>
+        entity.id === entityId ? { ...entity, entityType: newType } : entity
+      )
+    );
+  };
+
+  const getPossibleEntityTypes = (entity: ExtractedEntity): string[] => {
+    // If entity has possibleTypes, use those
+    if (entity.possibleTypes && entity.possibleTypes.length > 0) {
+      return entity.possibleTypes;
+    }
+
+    // Otherwise, suggest types based on confidence and data structure
+    const possibleTypes: string[] = [entity.entityType];
+
+    // If confidence is low, suggest similar types
+    if (entity.confidence < 0.7) {
+      if (
+        entity.entityType === "task" ||
+        entity.entityType === "feature" ||
+        entity.entityType === "problem"
+      ) {
+        // These are often confused
+        if (!possibleTypes.includes("task")) possibleTypes.push("task");
+        if (!possibleTypes.includes("feature")) possibleTypes.push("feature");
+        if (!possibleTypes.includes("problem")) possibleTypes.push("problem");
+      }
+    }
+
+    return possibleTypes;
   };
 
   const handleCloseEdit = () => {
@@ -512,26 +678,39 @@ export default function Chatbot({
   const handleEditSuccess = async () => {
     // Remove from preview after successful edit
     if (editingEntity) {
-      setPreviewEntities((prev) =>
-        prev.filter((e) => e.id !== editingEntity.id)
+      const entityType = editingEntity.entityType;
+      const entityName =
+        editingEntity.data.name || editingEntity.data.title || entityType;
+      const currentEntity = editingEntity;
+
+      setPreviewEntities((prev) => {
+        const remaining = prev.filter((e) => e.id !== currentEntity.id);
+        // If there are more entities in preview, automatically show the next one for editing
+        if (remaining.length > 0) {
+          // Small delay to allow the modal to close first
+          setTimeout(() => {
+            handleEdit(remaining[0]);
+          }, 100);
+        }
+        return remaining;
+      });
+
+      setEditingEntity(null);
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content: `✅ Created ${entityType}: ${entityName}`,
+          timestamp: new Date(),
+        },
+      ]);
+      // Dispatch refresh event
+      window.dispatchEvent(
+        new CustomEvent("entityCreated", {
+          detail: { type: entityType },
+        })
       );
     }
-    const entityType = editingEntity?.entityType;
-    setEditingEntity(null);
-    setMessages((prev) => [
-      ...prev,
-      {
-        role: "assistant",
-        content: "Entity created successfully!",
-        timestamp: new Date(),
-      },
-    ]);
-    // Dispatch refresh event
-    window.dispatchEvent(
-      new CustomEvent("entityCreated", {
-        detail: { type: entityType },
-      })
-    );
   };
 
   const handleDiscardEntity = (entityId: string) => {
@@ -623,90 +802,118 @@ export default function Chatbot({
                   Preview ({previewEntities.length} entity
                   {previewEntities.length !== 1 ? "ies" : "y"})
                 </h4>
-                {previewEntities.map((entity) => (
-                  <Card key={entity.id} className="mb-2">
-                    <CardHeader className="pb-2">
-                      <div className="flex justify-between items-center">
-                        <div className="flex gap-2 items-center">
-                          <CardTitle className="text-sm">
-                            {getEntityDisplayName(entity)}
-                          </CardTitle>
-                          <Badge variant="outline" className="text-xs">
-                            {entity.entityType}
-                          </Badge>
-                          <Badge
-                            variant={
-                              entity.confidence > 0.7
-                                ? "default"
-                                : entity.confidence > 0.4
-                                ? "secondary"
-                                : "destructive"
-                            }
-                            className="text-xs"
-                          >
-                            {Math.round(entity.confidence * 100)}% confident
-                          </Badge>
-                        </div>
-                        <div className="flex gap-1">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleEdit(entity)}
-                            className="h-7 text-xs"
-                          >
-                            <Edit2 className="w-3 h-3" />
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleAddEntity(entity)}
-                            disabled={creating[entity.id || ""]}
-                            className="h-7 text-xs"
-                          >
-                            {creating[entity.id || ""] ? (
-                              <Loader2 className="w-3 h-3 animate-spin" />
+                {previewEntities.map((entity) => {
+                  const possibleTypes = getPossibleEntityTypes(entity);
+                  const showTypeSelector =
+                    entity.confidence < 0.9 || possibleTypes.length > 1;
+                  const entityTypes = [
+                    "product",
+                    "module",
+                    "feature",
+                    "task",
+                    "problem",
+                    "strategy",
+                    "resource",
+                    "phase",
+                    "workstream",
+                    "cost",
+                  ];
+
+                  return (
+                    <Card key={entity.id} className="mb-2">
+                      <CardHeader className="pb-2">
+                        <div className="flex flex-wrap gap-2 justify-between items-center">
+                          <div className="flex flex-wrap gap-2 items-center">
+                            <CardTitle className="text-sm">
+                              {getEntityDisplayName(entity)}
+                            </CardTitle>
+                            {showTypeSelector ? (
+                              <Select
+                                value={entity.entityType}
+                                onValueChange={(newType) =>
+                                  handleEntityTypeChange(
+                                    entity.id || "",
+                                    newType
+                                  )
+                                }
+                              >
+                                <SelectTrigger className="h-6 text-xs w-auto min-w-[100px]">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent className="z-[10001]">
+                                  {entityTypes.map((type) => (
+                                    <SelectItem key={type} value={type}>
+                                      {type.charAt(0).toUpperCase() +
+                                        type.slice(1)}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
                             ) : (
-                              <Check className="w-3 h-3" />
+                              <Badge variant="outline" className="text-xs">
+                                {entity.entityType}
+                              </Badge>
                             )}
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleDiscardEntity(entity.id || "")}
-                            className="h-7 text-xs"
-                          >
-                            <Trash2 className="w-3 h-3" />
-                          </Button>
+                            <Badge
+                              variant={
+                                entity.confidence > 0.7
+                                  ? "default"
+                                  : entity.confidence > 0.4
+                                  ? "secondary"
+                                  : "destructive"
+                              }
+                              className="text-xs"
+                            >
+                              {Math.round(entity.confidence * 100)}% confident
+                            </Badge>
+                          </div>
+                          <div className="flex gap-1">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleEdit(entity)}
+                              className="h-7 text-xs"
+                            >
+                              <Edit2 className="w-3 h-3" />
+                              Edit
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() =>
+                                handleDiscardEntity(entity.id || "")
+                              }
+                              className="h-7 text-xs"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </Button>
+                          </div>
                         </div>
-                      </div>
-                    </CardHeader>
-                    <CardContent className="pt-0">
-                      <CardDescription className="text-xs">
-                        <pre className="overflow-x-auto p-2 text-xs rounded bg-muted">
-                          {JSON.stringify(entity.data, null, 2)}
-                        </pre>
-                      </CardDescription>
-                    </CardContent>
-                  </Card>
-                ))}
+                      </CardHeader>
+                      <CardContent className="pt-0">
+                        <CardDescription className="text-xs">
+                          <pre className="overflow-x-auto p-2 text-xs rounded bg-muted">
+                            {JSON.stringify(entity.data, null, 2)}
+                          </pre>
+                        </CardDescription>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
                 <div className="flex gap-2 mt-2">
                   <Button
                     size="sm"
-                    onClick={handleAddAll}
-                    disabled={Object.values(creating).some((v) => v)}
+                    variant="outline"
+                    onClick={() => {
+                      // Edit all entities - show modal for first one, then user can proceed
+                      if (previewEntities.length > 0) {
+                        handleEdit(previewEntities[0]);
+                      }
+                    }}
                     className="text-xs"
                   >
-                    {Object.values(creating).some((v) => v) ? (
-                      <>
-                        <Loader2 className="mr-1 w-3 h-3 animate-spin" />
-                        Creating...
-                      </>
-                    ) : (
-                      <>
-                        <Check className="mr-1 w-3 h-3" />
-                        Add All
-                      </>
-                    )}
+                    <Edit2 className="mr-1 w-3 h-3" />
+                    Edit All
                   </Button>
                   <Button
                     size="sm"
@@ -730,6 +937,81 @@ export default function Chatbot({
                 </div>
               </div>
             )}
+
+            {/* Context Selectors */}
+            <div className="grid grid-cols-3 gap-2 p-3 mb-4 rounded-lg border bg-muted/50">
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-muted-foreground">
+                  Product
+                </label>
+                <Select
+                  value={selectedProductId || undefined}
+                  onValueChange={(value) => {
+                    setSelectedProductId(value === "none" ? "" : value);
+                  }}
+                >
+                  <SelectTrigger className="h-9 text-sm">
+                    <SelectValue placeholder="Select product" />
+                  </SelectTrigger>
+                  <SelectContent className="z-[10001]">
+                    <SelectItem value="none">None</SelectItem>
+                    {products.map((product) => (
+                      <SelectItem key={product.id} value={product.id}>
+                        {product.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-muted-foreground">
+                  Module
+                </label>
+                <Select
+                  value={selectedModuleId || undefined}
+                  onValueChange={(value) => {
+                    setSelectedModuleId(value === "none" ? "" : value);
+                  }}
+                  disabled={!selectedProductId}
+                >
+                  <SelectTrigger className="h-9 text-sm">
+                    <SelectValue placeholder="Select module" />
+                  </SelectTrigger>
+                  <SelectContent className="z-[10001]">
+                    <SelectItem value="none">None</SelectItem>
+                    {modules.map((module) => (
+                      <SelectItem key={module.id} value={module.id}>
+                        {module.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-muted-foreground">
+                  Feature
+                </label>
+                <Select
+                  value={selectedFeatureId || undefined}
+                  onValueChange={(value) => {
+                    setSelectedFeatureId(value === "none" ? "" : value);
+                  }}
+                  disabled={!selectedProductId}
+                >
+                  <SelectTrigger className="h-9 text-sm">
+                    <SelectValue placeholder="Select feature" />
+                  </SelectTrigger>
+                  <SelectContent className="z-[10001]">
+                    <SelectItem value="none">None</SelectItem>
+                    {features.map((feature) => (
+                      <SelectItem key={feature.id} value={feature.id}>
+                        {feature.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
 
             {/* Input */}
             <div className="flex gap-2">
@@ -767,31 +1049,27 @@ export default function Chatbot({
         >
           {editingEntity.entityType === "task" && (
             <TaskForm
-              task={
-                {
-                  id: "",
-                  product_id: editingEntity.data.product_id || productId || "",
-                  module_id: editingEntity.data.module_id || moduleId,
-                  feature_id: editingEntity.data.feature_id,
-                  problem_id: editingEntity.data.problem_id,
-                  phase_id: editingEntity.data.phase_id,
-                  title: editingEntity.data.title || "",
-                  description: editingEntity.data.description,
-                  status: editingEntity.data.status || "todo",
-                  priority: editingEntity.data.priority || "medium",
-                  assignee_ids: editingEntity.data.assignee_ids || [],
-                  depends_on_task_ids:
-                    editingEntity.data.depends_on_task_ids || [],
-                  estimated_hours: editingEntity.data.estimated_hours,
-                  due_date: editingEntity.data.due_date,
-                  cost_classification: editingEntity.data.cost_classification,
-                } as Task
-              }
-              products={products}
-              features={features}
+              task={undefined}
+              products={[]}
+              features={[]}
               resources={resources}
               initialProductId={editingEntity.data.product_id || productId}
               initialModuleId={editingEntity.data.module_id || moduleId}
+              initialProblemId={editingEntity.data.problem_id}
+              initialFeatureId={editingEntity.data.feature_id}
+              initialPhaseId={editingEntity.data.phase_id}
+              initialWorkstreamId={editingEntity.data.workstream_id}
+              initialTitle={editingEntity.data.title}
+              initialDescription={editingEntity.data.description}
+              initialStatus={editingEntity.data.status || "todo"}
+              initialPriority={editingEntity.data.priority || "medium"}
+              initialAssigneeIds={editingEntity.data.assignee_ids || []}
+              initialDependsOnTaskIds={
+                editingEntity.data.depends_on_task_ids || []
+              }
+              initialDueDate={editingEntity.data.due_date}
+              initialEstimatedHours={editingEntity.data.estimated_hours}
+              initialCostClassification={editingEntity.data.cost_classification}
               onSuccess={handleEditSuccess}
               onCancel={handleCloseEdit}
             />
@@ -834,26 +1112,62 @@ export default function Chatbot({
               onCancel={handleCloseEdit}
             />
           )}
-          {editingEntity.entityType === "problem" &&
-            editingEntity.data.product_id && (
-              <ProblemForm
-                problem={
-                  {
-                    id: "",
-                    product_id: editingEntity.data.product_id,
-                    module_id: editingEntity.data.module_id,
-                    title: editingEntity.data.title || "",
-                    description: editingEntity.data.description,
-                    status: editingEntity.data.status || "identified",
-                    priority: editingEntity.data.priority || "medium",
-                  } as any
+          {editingEntity.entityType === "problem" && (
+            <ProblemForm
+              problem={
+                {
+                  id: "",
+                  product_id: editingEntity.data.product_id || productId || "",
+                  module_id: editingEntity.data.module_id || moduleId,
+                  title: editingEntity.data.title || "",
+                  description: editingEntity.data.description,
+                  status: editingEntity.data.status || "identified",
+                  priority: editingEntity.data.priority || "medium",
+                } as any
+              }
+              productId={editingEntity.data.product_id || productId || ""}
+              moduleId={editingEntity.data.module_id || moduleId}
+              onSubmit={async (problemData) => {
+                try {
+                  // Ensure product_id is set (required)
+                  if (!problemData.product_id) {
+                    problemData.product_id = productId || "";
+                  }
+                  if (!problemData.product_id) {
+                    throw new Error(
+                      "Product ID is required to create a problem"
+                    );
+                  }
+
+                  // Create the problem via API
+                  await problemsAPI.create(problemData);
+
+                  // Then call handleEditSuccess to clean up and show success message
+                  handleEditSuccess();
+                } catch (err) {
+                  console.error("Failed to create problem:", err);
+                  throw err; // Re-throw so ProblemForm can show the error
                 }
-                productId={editingEntity.data.product_id}
-                moduleId={editingEntity.data.module_id || moduleId}
-                onSubmit={handleEditSuccess}
-                onCancel={handleCloseEdit}
-              />
-            )}
+              }}
+              onCancel={handleCloseEdit}
+            />
+          )}
+          {editingEntity.entityType === "resource" && (
+            <ResourceForm
+              resource={
+                {
+                  id: "",
+                  name: editingEntity.data.name || "",
+                  type: editingEntity.data.type || "individual",
+                  skills: editingEntity.data.skills || [],
+                  email: editingEntity.data.email,
+                  description: editingEntity.data.description,
+                } as Resource
+              }
+              onSuccess={handleEditSuccess}
+              onCancel={handleCloseEdit}
+            />
+          )}
         </Modal>
       )}
     </>

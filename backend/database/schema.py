@@ -140,9 +140,17 @@ class CostItemUpdate(BaseModel):
     description: Optional[str] = None
 
 
-class CostItemResponse(CostItemBase):
+class CostItemResponse(BaseModel):
     """Schema for cost item response."""
     id: str
+    product_id: str
+    category_id: Optional[str] = None
+    scenario_id: Optional[str] = None  # Made optional for backward compatibility
+    cost_type_id: Optional[str] = None
+    name: str
+    amount: float
+    currency: str = "USD"
+    description: Optional[str] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
     
@@ -192,7 +200,7 @@ class FeatureBase(BaseModel):
     release_id: Optional[str] = None
     sprint_id: Optional[str] = None
     capacity_estimate: Optional[float] = None
-    cost_classification: Optional[str] = Field(None, description="Cost classification: 'run' (Run/KTLO) or 'change' (Change/Growth)")
+    diagram_xml: Optional[str] = Field(None, description="Draw.io XML diagram content")
 
 
 class FeatureCreate(FeatureBase):
@@ -225,6 +233,7 @@ class FeatureUpdate(BaseModel):
     release_id: Optional[str] = None
     sprint_id: Optional[str] = None
     capacity_estimate: Optional[float] = None
+    diagram_xml: Optional[str] = None
 
 
 class FeatureResponse(FeatureBase):
@@ -347,7 +356,6 @@ class TaskBase(BaseModel):
     phase_id: Optional[str] = None
     title: str
     description: Optional[str] = None
-    effort: Optional[float] = None  # In hours or story points
     status: str = Field(..., description="Status: 'todo', 'in_progress', 'blocked', or 'done'")
     priority: str = Field(..., description="Priority: 'low', 'medium', 'high', or 'critical'")
     dependencies: List[str] = Field(default_factory=list, description="List of task IDs this task depends on")
@@ -357,6 +365,7 @@ class TaskBase(BaseModel):
     actual_hours: Optional[float] = None
     blockers: Optional[List[str]] = None
     cost_classification: Optional[str] = Field(None, description="Cost classification: 'run' (Run/KTLO) or 'change' (Change/Growth)")
+    comments: List[dict] = Field(default_factory=list, description="List of comment objects")
     # Legacy field
     depends_on_task_ids: List[str] = Field(default_factory=list, description="Deprecated - use dependencies")
 
@@ -369,13 +378,13 @@ class TaskCreate(TaskBase):
 class TaskUpdate(BaseModel):
     """Schema for updating a task."""
     product_id: Optional[str] = None
+    comments: Optional[List[dict]] = None
     feature_id: Optional[str] = None
     problem_id: Optional[str] = None
     workstream_id: Optional[str] = None
     phase_id: Optional[str] = None
     title: Optional[str] = None
     description: Optional[str] = None
-    effort: Optional[float] = None
     status: Optional[str] = None
     priority: Optional[str] = None
     dependencies: Optional[List[str]] = None
@@ -387,6 +396,7 @@ class TaskUpdate(BaseModel):
     cost_classification: Optional[str] = Field(None, description="Cost classification: 'run' (Run/KTLO) or 'change' (Change/Growth)")
     # Legacy field
     depends_on_task_ids: Optional[List[str]] = None
+    diagram_xml: Optional[str] = None
 
 
 class TaskResponse(TaskBase):
@@ -696,7 +706,10 @@ class StakeholderBase(BaseModel):
     module_id: Optional[str] = None  # Optional - can be module-specific or product-level
     name: str
     email: str
+    company_name: Optional[str] = None
     role: Optional[str] = None
+    influence_level: Optional[str] = Field(None, description="Influence level: 'low', 'medium', 'high', 'critical'")
+    interests: Optional[List[str]] = None
     communication_preferences: Optional[str] = None
     update_frequency: Optional[str] = Field(None, description="Update frequency: 'daily', 'weekly', 'monthly', 'quarterly'")
 
@@ -711,6 +724,7 @@ class StakeholderUpdate(BaseModel):
     product_id: Optional[str] = None
     name: Optional[str] = None
     email: Optional[str] = None
+    company_name: Optional[str] = None
     role: Optional[str] = None
     influence_level: Optional[str] = None
     interests: Optional[List[str]] = None
@@ -759,6 +773,41 @@ class StatusReportUpdate(BaseModel):
 
 class StatusReportResponse(StatusReportBase):
     """Schema for status report response."""
+    id: str
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+    
+    class Config:
+        from_attributes = True
+
+
+# Feature Report Schemas
+class FeatureReportBase(BaseModel):
+    """Base feature report schema."""
+    product_id: str
+    feature_id: str
+    name: str
+    description: Optional[str] = None
+    diagram_xml: Optional[str] = None
+    include_diagram: bool = False
+    created_by: Optional[str] = None
+
+
+class FeatureReportCreate(FeatureReportBase):
+    """Schema for creating a feature report."""
+    pass
+
+
+class FeatureReportUpdate(BaseModel):
+    """Schema for updating a feature report."""
+    name: Optional[str] = None
+    description: Optional[str] = None
+    diagram_xml: Optional[str] = None
+    include_diagram: Optional[bool] = None
+
+
+class FeatureReportResponse(FeatureReportBase):
+    """Schema for feature report response."""
     id: str
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
@@ -977,12 +1026,48 @@ class RoadmapResponse(RoadmapBase):
         from_attributes = True
 
 
+# Vendor Schemas
+class VendorBase(BaseModel):
+    """Base vendor schema."""
+    name: str
+    organization_id: Optional[str] = None
+    contact_email: Optional[str] = None
+    contact_phone: Optional[str] = None
+    website: Optional[str] = None
+    description: Optional[str] = None
+
+
+class VendorCreate(VendorBase):
+    """Schema for creating a vendor."""
+    pass
+
+
+class VendorUpdate(BaseModel):
+    """Schema for updating a vendor."""
+    name: Optional[str] = None
+    organization_id: Optional[str] = None
+    contact_email: Optional[str] = None
+    contact_phone: Optional[str] = None
+    website: Optional[str] = None
+    description: Optional[str] = None
+
+
+class VendorResponse(VendorBase):
+    """Schema for vendor response."""
+    id: str
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+    
+    class Config:
+        from_attributes = True
+
+
 # Cost Schemas
 class CostBase(BaseModel):
     """Base cost schema."""
     product_id: str
     module_id: Optional[str] = None  # Optional - for module-level costs
-    scope: str = Field(..., description="Scope: 'task', 'capability', 'product', 'shared'")
+    scope: str = Field(..., description="Scope: 'product', 'module', 'feature', 'resource', 'hardware', 'software', 'database', 'consulting'")
     scope_id: Optional[str] = None
     category: str = Field(..., description="Category: 'build', 'run', 'maintain', 'scale', 'overhead'")
     cost_type: str = Field(..., description="Cost type: 'labor', 'infra', 'license', 'vendor', 'other'")
@@ -996,6 +1081,7 @@ class CostBase(BaseModel):
     time_period_end: Optional[datetime] = None
     description: Optional[str] = None
     resource_id: Optional[str] = None
+    vendor_id: Optional[str] = None
     cost_classification: Optional[str] = Field(None, description="Cost classification: 'run' (Run/KTLO) or 'change' (Change/Growth)")
 
 
@@ -1021,6 +1107,7 @@ class CostUpdate(BaseModel):
     time_period_end: Optional[datetime] = None
     description: Optional[str] = None
     resource_id: Optional[str] = None
+    vendor_id: Optional[str] = None
     cost_classification: Optional[str] = None
 
 
@@ -1204,8 +1291,6 @@ class ModuleBase(BaseModel):
     owner_id: Optional[str] = None  # Clerk user ID
     is_default: bool = False
     status: str = Field(default="ideation", description="Module status: 'ideation', 'in_development', 'production', 'maintenance', 'archived'")
-    enabled_steps: List[str] = Field(default_factory=list, description="List of workflow steps: ['strategy', 'discovery', 'prioritization', 'roadmap', 'execution', 'stakeholders', 'metrics']")
-    step_order: List[str] = Field(default_factory=list, description="Custom order of steps")
     layout_config: Optional[dict] = None
     settings: Optional[dict] = None
     cost_classification: Optional[str] = Field(None, description="Cost classification: 'run' (Run/KTLO) or 'change' (Change/Growth)")
@@ -1218,12 +1303,11 @@ class ModuleCreate(ModuleBase):
 
 class ModuleUpdate(BaseModel):
     """Schema for updating a module."""
+    product_id: Optional[str] = Field(None, description="Product ID - can be updated to fix orphaned modules")
     name: Optional[str] = None
     description: Optional[str] = None
     is_default: Optional[bool] = None
     status: Optional[str] = None
-    enabled_steps: Optional[List[str]] = None
-    step_order: Optional[List[str]] = None
     layout_config: Optional[dict] = None
     settings: Optional[dict] = None
     cost_classification: Optional[str] = Field(None, description="Cost classification: 'run' (Run/KTLO) or 'change' (Change/Growth)")
@@ -1231,6 +1315,186 @@ class ModuleUpdate(BaseModel):
 
 class ModuleResponse(ModuleBase):
     """Schema for module response."""
+    id: str
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+    
+    class Config:
+        from_attributes = True
+
+
+# Cloud Config Schemas
+class CloudConfigBase(BaseModel):
+    """Base cloud config schema."""
+    organization_id: str
+    provider: str = Field(..., description="Cloud provider: 'aws', 'azure', or 'gcp'")
+    name: str
+    is_active: bool = True
+    region: Optional[str] = None
+    account_id: Optional[str] = None
+    last_synced_at: Optional[datetime] = None
+    last_sync_status: Optional[str] = None
+    last_sync_error: Optional[str] = None
+
+
+class AWSCloudConfigCreate(BaseModel):
+    """Schema for creating AWS cloud configuration."""
+    name: str
+    access_key_id: str
+    secret_access_key: str
+    region: str = "us-east-1"
+    account_id: Optional[str] = None
+    is_active: bool = False
+
+
+class AzureCloudConfigCreate(BaseModel):
+    """Schema for creating Azure cloud configuration."""
+    name: str
+    subscription_id: str
+    client_id: str
+    client_secret: str
+    tenant_id: str
+    region: Optional[str] = None
+    is_active: bool = False
+
+
+class CloudConfigCreate(BaseModel):
+    """Schema for creating cloud configuration."""
+    provider: str = Field(..., description="Cloud provider: 'aws', 'azure', or 'gcp'")
+    name: str
+    is_active: bool = False
+    region: Optional[str] = None
+    account_id: Optional[str] = None
+    # Provider-specific credentials (will be encrypted before storage)
+    # For AWS
+    access_key_id: Optional[str] = None
+    secret_access_key: Optional[str] = None
+    # For Azure (future)
+    subscription_id: Optional[str] = None
+    client_id: Optional[str] = None
+    client_secret: Optional[str] = None
+    tenant_id: Optional[str] = None
+    # For GCP (future)
+    project_id: Optional[str] = None
+    service_account_json: Optional[str] = None
+
+
+class CloudConfigUpdate(BaseModel):
+    """Schema for updating cloud configuration."""
+    name: Optional[str] = None
+    is_active: Optional[bool] = None
+    region: Optional[str] = None
+    account_id: Optional[str] = None
+    # Provider-specific credentials (will be encrypted if provided)
+    access_key_id: Optional[str] = None
+    secret_access_key: Optional[str] = None
+    subscription_id: Optional[str] = None
+    client_id: Optional[str] = None
+    client_secret: Optional[str] = None
+    tenant_id: Optional[str] = None
+    project_id: Optional[str] = None
+    service_account_json: Optional[str] = None
+
+
+class CloudConfigResponse(CloudConfigBase):
+    """Schema for cloud config response (credentials never returned)."""
+    id: str
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+    # credentials_encrypted is NEVER returned
+    
+    class Config:
+        from_attributes = True
+
+
+# EmailAccount Schemas
+class EmailAccountBase(BaseModel):
+    """Base email account schema."""
+    user_id: str = Field(..., description="Clerk user ID")
+    email: str = Field(..., description="Email address")
+    name: str = Field(..., description="Display name for the account")
+    is_active: bool = Field(default=True, description="Whether the account is active")
+    is_default: bool = Field(default=False, description="Whether this is the default account")
+
+
+class EmailAccountCreate(BaseModel):
+    """Schema for creating an email account (initiates OAuth)."""
+    name: str = Field(..., description="Display name for the account")
+
+
+class EmailAccountUpdate(BaseModel):
+    """Schema for updating an email account."""
+    name: Optional[str] = None
+    is_active: Optional[bool] = None
+    is_default: Optional[bool] = None
+
+
+class EmailAccountResponse(EmailAccountBase):
+    """Schema for email account response (credentials never returned)."""
+    id: str
+    last_authenticated_at: Optional[datetime] = None
+    last_sync_at: Optional[datetime] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+    # credentials_encrypted is NEVER returned
+    
+    class Config:
+        from_attributes = True
+
+
+# OAuth Flow Schemas
+class OAuthInitRequest(BaseModel):
+    """Request to initiate OAuth flow."""
+    name: str = Field(..., description="Display name for the account")
+
+
+class OAuthInitResponse(BaseModel):
+    """Response with OAuth URL."""
+    oauth_url: str = Field(..., description="URL to redirect user to for OAuth consent")
+    state: str = Field(..., description="OAuth state token for verification")
+    account_id: str = Field(..., description="Temporary account ID created for OAuth flow")
+
+
+class OAuthCallbackRequest(BaseModel):
+    """Request to complete OAuth flow."""
+    code: str = Field(..., description="Authorization code from OAuth callback")
+    state: str = Field(..., description="State token for verification")
+    account_id: str = Field(..., description="Account ID from OAuth initiation")
+
+
+# ProcessedEmail Schemas
+class ProcessedEmailBase(BaseModel):
+    """Base processed email schema."""
+    email_id: str = Field(..., description="Gmail message ID")
+    thread_id: str = Field(..., description="Gmail thread ID")
+    from_email: str
+    subject: str
+    received_date: datetime
+    processed_at: Optional[datetime] = None
+    status: str = Field(default="pending", description="Status: 'pending', 'approved', 'rejected', 'created', 'correlated', 'sent'")
+    suggested_entity_type: str = Field(..., description="Entity type: 'feature', 'task', 'response', 'correlate_task'")
+    suggested_data: dict = Field(default_factory=dict, description="Extracted data as JSON")
+    created_entity_id: Optional[str] = None
+    correlated_task_id: Optional[str] = None
+    gmail_label_id: Optional[str] = None
+
+
+class ProcessedEmailCreate(ProcessedEmailBase):
+    """Schema for creating a processed email."""
+    pass
+
+
+class ProcessedEmailUpdate(BaseModel):
+    """Schema for updating a processed email."""
+    status: Optional[str] = None
+    suggested_data: Optional[dict] = None
+    created_entity_id: Optional[str] = None
+    correlated_task_id: Optional[str] = None
+    gmail_label_id: Optional[str] = None
+
+
+class ProcessedEmailResponse(ProcessedEmailBase):
+    """Schema for processed email response."""
     id: str
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None

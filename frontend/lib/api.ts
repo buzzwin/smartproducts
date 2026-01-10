@@ -1,13 +1,24 @@
 /** API client for backend communication */
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+// Use proxy route to avoid mixed content errors on Railway
+// All requests go through Next.js API routes which proxy to the internal backend
+const USE_PROXY = process.env.NEXT_PUBLIC_USE_API_PROXY !== 'false'; // Default to true for production
+const API_URL = USE_PROXY 
+  ? '/api/proxy'  // Use Next.js proxy route (recommended for Railway)
+  : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'); // Direct connection for local dev only
 
-export async function fetchAPI<T>(endpoint: string, options?: RequestInit): Promise<T> {
+export async function fetchAPI<T>(endpoint: string, options?: RequestInit, timeoutMs?: number): Promise<T> {
   // Create an AbortController for timeout
+  // Email processing can take longer, so use longer timeout for those endpoints
+  const defaultTimeout = endpoint.includes('/email-agent/process') ? 120000 : 10000; // 2 minutes for email processing, 10s for others
+  const timeout = timeoutMs || defaultTimeout;
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+  const timeoutId = setTimeout(() => controller.abort(), timeout);
 
   try {
-    const response = await fetch(`${API_URL}${endpoint}`, {
+    // Always use proxy in production (Railway), allow direct connection for local dev
+    const url = `${API_URL}${endpoint}`;
+    
+    const response = await fetch(url, {
       ...options,
       signal: controller.signal,
       headers: {
@@ -49,15 +60,34 @@ export async function fetchAPI<T>(endpoint: string, options?: RequestInit): Prom
       throw new Error(`HTTP error! status: ${response.status}`);
     }
 
-    const jsonData = await response.json();
-    
-    if (endpoint.includes('/azure-costs/')) {
-      console.log(`[FRONTEND DEBUG] fetchAPI - Response JSON:`, jsonData);
-      console.log(`[FRONTEND DEBUG] fetchAPI - Costs array:`, jsonData.costs);
-      console.log(`[FRONTEND DEBUG] fetchAPI - Costs length:`, jsonData.costs?.length);
+    // Handle 204 No Content responses (no body to parse)
+    if (response.status === 204) {
+      return undefined as T;
     }
-    
-    return jsonData;
+
+    // Try to parse JSON, but handle empty responses gracefully
+    try {
+      const text = await response.text();
+      if (!text || text.trim() === '') {
+        return undefined as T;
+      }
+      const jsonData = JSON.parse(text);
+      
+      if (endpoint.includes('/azure-costs/')) {
+        console.log(`[FRONTEND DEBUG] fetchAPI - Response JSON:`, jsonData);
+        console.log(`[FRONTEND DEBUG] fetchAPI - Costs array:`, jsonData.costs);
+        console.log(`[FRONTEND DEBUG] fetchAPI - Costs length:`, jsonData.costs?.length);
+      }
+      
+      return jsonData;
+    } catch (parseError) {
+      // If parsing fails, it might be an empty response or non-JSON response
+      // Return undefined for void types, otherwise re-throw
+      if (response.status >= 200 && response.status < 300) {
+        return undefined as T;
+      }
+      throw parseError;
+    }
   } catch (err) {
     clearTimeout(timeoutId);
     
@@ -66,11 +96,13 @@ export async function fetchAPI<T>(endpoint: string, options?: RequestInit): Prom
     }
     
     if (err instanceof TypeError && err.message.includes('fetch')) {
-      throw new Error(`Cannot connect to backend at ${API_URL}. Make sure the backend server is running.`);
+      const backendUrl = USE_PROXY ? 'backend (via proxy)' : API_URL;
+      throw new Error(`Cannot connect to backend at ${backendUrl}. Make sure the backend server is running.`);
     }
     
     if (err instanceof Error && err.name === 'AbortError') {
-      throw new Error(`Request timeout: Backend at ${API_URL} is not responding. Please check if the server is running.`);
+      const backendUrl = USE_PROXY ? 'backend (via proxy)' : API_URL;
+      throw new Error(`Request timeout: Backend at ${backendUrl} is not responding. Please check if the server is running.`);
     }
     
     throw err;
@@ -207,6 +239,31 @@ export const resourcesAPI = {
     fetchAPI<void>(`/api/resources/${id}`, { method: 'DELETE' }),
 };
 
+// Vendors API
+export const vendorsAPI = {
+  getAll: (organizationId?: string) => {
+    const query = new URLSearchParams();
+    if (organizationId) query.append('organization_id', organizationId);
+    const queryString = query.toString();
+    return fetchAPI<import('../types').Vendor[]>(
+      `/api/vendors${queryString ? `?${queryString}` : ''}`
+    );
+  },
+  getById: (id: string) => fetchAPI<import('../types').Vendor>(`/api/vendors/${id}`),
+  create: (vendor: Omit<import('../types').Vendor, 'id' | 'created_at' | 'updated_at'>) =>
+    fetchAPI<import('../types').Vendor>('/api/vendors', {
+      method: 'POST',
+      body: JSON.stringify(vendor),
+    }),
+  update: (id: string, vendor: Partial<import('../types').Vendor>) =>
+    fetchAPI<import('../types').Vendor>(`/api/vendors/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(vendor),
+    }),
+  delete: (id: string) =>
+    fetchAPI<void>(`/api/vendors/${id}`, { method: 'DELETE' }),
+};
+
 // Note: Capabilities API removed - use Features API with parent_feature_id for hierarchy
 
 // Workstreams API
@@ -282,6 +339,23 @@ export const tasksAPI = {
     }),
   delete: (id: string) =>
     fetchAPI<void>(`/api/tasks/${id}`, { method: 'DELETE' }),
+  addComment: (taskId: string, comment: { text: string; author?: string; source?: string; email_id?: string; email_subject?: string }) =>
+    fetchAPI<any>(`/api/tasks/${taskId}/comments`, {
+      method: 'POST',
+      body: JSON.stringify(comment),
+    }),
+  getComments: (taskId: string) =>
+    fetchAPI<{ comments: any[] }>(`/api/tasks/${taskId}/comments`),
+  generateStatusEmail: (taskId: string, data: { resource_id?: string; resource_email?: string; resource_name?: string; user_name?: string }) =>
+    fetchAPI<{ subject: string; body: string; to_email: string; to_name: string }>(`/api/tasks/${taskId}/generate-status-email`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  sendStatusEmail: (taskId: string, data: { to_email: string; subject: string; body: string; cc?: string }) =>
+    fetchAPI<{ message: string; message_id: string; thread_id: string }>(`/api/tasks/${taskId}/send-status-email`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
 };
 
 // Strategies API
@@ -1156,5 +1230,149 @@ export const azureCostsAPI = {
       throw error;
     }
   },
+};
+
+// Email Agent API
+export const emailAgentAPI = {
+  processEmails: (maxEmails?: number, sinceDate?: string | Date, userId?: string, emailAccountId?: string) => {
+    const params = new URLSearchParams();
+    if (maxEmails) params.append('max_emails', maxEmails.toString());
+    if (sinceDate) {
+      const dateStr = sinceDate instanceof Date ? sinceDate.toISOString() : sinceDate;
+      params.append('since_date', dateStr);
+    }
+    if (userId) params.append('user_id', userId);
+    if (emailAccountId) params.append('email_account_id', emailAccountId);
+    return fetchAPI<{ processed_count: number; suggestions: any[] }>(
+      `/api/email-agent/process?${params.toString()}`, 
+      { method: 'POST' }
+    );
+  },
+  
+  getSuggestions: (status?: string, entityType?: string, limit?: number, offset?: number) => {
+    const params = new URLSearchParams();
+    if (status) params.append('status', status);
+    if (entityType) params.append('entity_type', entityType);
+    if (limit) params.append('limit', limit.toString());
+    if (offset) params.append('offset', offset.toString());
+    return fetchAPI<any[]>(`/api/email-agent/suggestions?${params.toString()}`);
+  },
+  
+  getSuggestion: (id: string) => 
+    fetchAPI<any>(`/api/email-agent/suggestions/${id}`),
+  
+  approveSuggestion: (id: string, overrides?: any) =>
+    fetchAPI<any>(`/api/email-agent/suggestions/${id}/approve`, {
+      method: 'POST',
+      body: JSON.stringify(overrides || {}),
+    }),
+  
+  rejectSuggestion: (id: string) =>
+    fetchAPI<{ message: string }>(`/api/email-agent/suggestions/${id}/reject`, {
+      method: 'POST',
+    }),
+  
+  updateSuggestion: (id: string, updates: any) =>
+    fetchAPI<any>(`/api/email-agent/suggestions/${id}/update`, {
+      method: 'POST',
+      body: JSON.stringify(updates),
+    }),
+  
+  sendResponse: (id: string, responseText?: string, to?: string, cc?: string) =>
+    fetchAPI<any>(`/api/email-agent/suggestions/${id}/send-response`, {
+      method: 'POST',
+      body: JSON.stringify({ 
+        response_text: responseText,
+        to: to,
+        cc: cc
+      }),
+    }),
+  
+  correlateToTask: (id: string, taskId: string, updateStatus?: boolean, status?: string, 
+                    addComment?: boolean, commentText?: string) =>
+    fetchAPI<any>(`/api/email-agent/suggestions/${id}/correlate`, {
+      method: 'POST',
+      body: JSON.stringify({
+        task_id: taskId,
+        update_status: updateStatus,
+        status,
+        add_comment: addComment,
+        comment_text: commentText,
+      }),
+    }),
+  
+  checkGmailAuth: () =>
+    fetchAPI<{ authenticated: boolean; token_expires_at?: string; needs_refresh?: boolean; has_refresh_token?: boolean; error?: string }>('/api/gmail/auth/status'),
+  
+  refreshGmailToken: () =>
+    fetchAPI<{ authenticated: boolean; refreshed: boolean; token_expires_at?: string; error?: string }>('/api/gmail/auth/refresh', {
+      method: 'POST',
+    }),
+  
+  getDashboardStats: () =>
+    fetchAPI<any>('/api/email-agent/dashboard/stats'),
+  
+  getActivityFeed: (limit?: number, sinceDate?: string) => {
+    const params = new URLSearchParams();
+    if (limit) params.append('limit', limit.toString());
+    if (sinceDate) params.append('since_date', sinceDate);
+    return fetchAPI<any[]>(`/api/email-agent/dashboard/activity?${params.toString()}`);
+  },
+  
+  deleteSuggestion: (id: string) =>
+    fetchAPI<{ message: string }>(`/api/email-agent/suggestions/${id}`, {
+      method: 'DELETE',
+    }),
+  
+  getMatchingTasks: (id: string, productId?: string, moduleId?: string) => {
+    const params = new URLSearchParams();
+    if (productId) params.append('product_id', productId);
+    if (moduleId) params.append('module_id', moduleId);
+    return fetchAPI<{ matches: Array<{ task_id: string; task_title: string; confidence: number }> }>(
+      `/api/email-agent/suggestions/${id}/matching-tasks?${params.toString()}`
+    );
+  },
+};
+
+// Email Accounts API
+export const emailAccountsAPI = {
+  getAll: (userId: string) =>
+    fetchAPI<import('../types').EmailAccount[]>(`/api/email-accounts?user_id=${userId}`),
+  
+  getById: (accountId: string, userId: string) =>
+    fetchAPI<import('../types').EmailAccount>(`/api/email-accounts/${accountId}?user_id=${userId}`),
+  
+  create: (userId: string, name: string) =>
+    fetchAPI<import('../types').OAuthInitResponse>(`/api/email-accounts?user_id=${userId}`, {
+      method: 'POST',
+      body: JSON.stringify({ name }),
+    }),
+  
+  update: (accountId: string, userId: string, updates: import('../types').EmailAccountUpdate) =>
+    fetchAPI<import('../types').EmailAccount>(`/api/email-accounts/${accountId}?user_id=${userId}`, {
+      method: 'PUT',
+      body: JSON.stringify(updates),
+    }),
+  
+  delete: (accountId: string, userId: string) =>
+    fetchAPI<void>(`/api/email-accounts/${accountId}?user_id=${userId}`, {
+      method: 'DELETE',
+    }),
+  
+  setDefault: (accountId: string, userId: string) =>
+    fetchAPI<import('../types').EmailAccount>(`/api/email-accounts/${accountId}/set-default?user_id=${userId}`, {
+      method: 'POST',
+    }),
+  
+  refreshToken: (accountId: string, userId: string) =>
+    fetchAPI<import('../types').EmailAccount>(`/api/email-accounts/${accountId}/refresh-token?user_id=${userId}`, {
+      method: 'POST',
+    }),
+  
+  oauthCallback: (accountId: string, userId: string, code: string, state: string) =>
+    fetchAPI<import('../types').EmailAccount>(`/api/email-accounts/${accountId}/oauth/callback?user_id=${userId}`, {
+      method: 'POST',
+      body: JSON.stringify({ code, state, account_id: accountId }),
+    }),
 };
 

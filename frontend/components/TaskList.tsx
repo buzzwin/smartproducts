@@ -21,8 +21,8 @@ import type {
 } from "@/types";
 import TaskForm from "./TaskForm";
 import Modal from "./Modal";
-import DrawIORenderer from "./diagrams/DrawIORenderer";
-import { Download, FileSpreadsheet, FileText, Image } from "lucide-react";
+import DrawIOViewer from "./diagrams/DrawIOViewer";
+import { Download, FileSpreadsheet, FileText, Image, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -71,6 +71,7 @@ export default function TaskList({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [viewingTask, setViewingTask] = useState<Task | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [viewingDiagramTask, setViewingDiagramTask] = useState<Task | null>(
     null
@@ -543,9 +544,35 @@ export default function TaskList({
                 new Date(task.due_date) < new Date() &&
                 task.status !== "done";
 
+              const commentCount = task.comments?.length || 0;
+              const emailCommentCount = task.comments?.filter((c: any) => c.source === "email").length || 0;
+
               return (
                 <tr key={task.id}>
-                  <td style={{ fontWeight: 500 }}>{task.title}</td>
+                  <td style={{ fontWeight: 500 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                      <span>{task.title}</span>
+                      {commentCount > 0 && (
+                        <span
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: "4px",
+                            padding: "2px 6px",
+                            backgroundColor: emailCommentCount > 0 ? "#e7f3ff" : "#f0f0f0",
+                            color: emailCommentCount > 0 ? "#0066cc" : "#666",
+                            borderRadius: "10px",
+                            fontSize: "10px",
+                            fontWeight: 500,
+                          }}
+                          title={`${commentCount} comment${commentCount !== 1 ? "s" : ""}${emailCommentCount > 0 ? ` (${emailCommentCount} from email)` : ""}`}
+                        >
+                          💬 {commentCount}
+                          {emailCommentCount > 0 && " 📧"}
+                        </span>
+                      )}
+                    </div>
+                  </td>
                   <td>{product?.name || task.product_id}</td>
                   <td>{feature?.name || "-"}</td>
                   <td>{workstream?.name || "-"}</td>
@@ -675,6 +702,26 @@ export default function TaskList({
                       </button>
                     )}
                     <button
+                      onClick={() => setViewingTask(task)}
+                      style={{
+                        padding: "4px 12px",
+                        fontSize: "12px",
+                        backgroundColor: "#6c757d",
+                        color: "#fff",
+                        border: "none",
+                        borderRadius: "4px",
+                        cursor: "pointer",
+                        marginRight: "8px",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "4px",
+                      }}
+                      title="View Task"
+                    >
+                      <Eye style={{ width: "14px", height: "14px" }} />
+                      View
+                    </button>
+                    <button
                       onClick={() => setEditingTask(task)}
                       style={{
                         padding: "4px 12px",
@@ -755,6 +802,28 @@ export default function TaskList({
         )}
       </Modal>
 
+      {/* View Task Modal */}
+      <Modal
+        isOpen={!!viewingTask}
+        onClose={() => setViewingTask(null)}
+        title={`View Task: ${viewingTask?.title || ""}`}
+      >
+        {viewingTask && (
+          <TaskForm
+            task={viewingTask}
+            products={products}
+            features={features}
+            resources={resources}
+            onSuccess={() => {
+              setViewingTask(null);
+              loadData();
+              if (onUpdate) onUpdate();
+            }}
+            onCancel={() => setViewingTask(null)}
+          />
+        )}
+      </Modal>
+
       {/* Diagram View Modal */}
       <Modal
         isOpen={!!viewingDiagramTask}
@@ -762,7 +831,7 @@ export default function TaskList({
         title={`Diagram: ${viewingDiagramTask?.title || ""}`}
       >
         {viewingDiagramTask && viewingDiagramTask.diagram_xml && (
-          <DrawIORenderer xmlContent={viewingDiagramTask.diagram_xml} />
+          <DrawIOViewer xmlContent={viewingDiagramTask.diagram_xml} />
         )}
       </Modal>
     </div>

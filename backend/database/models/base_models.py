@@ -1,6 +1,7 @@
 """Base model definitions shared across database implementations."""
 from datetime import datetime
 from typing import Optional, List
+from enum import Enum
 from pydantic import BaseModel
 
 
@@ -61,6 +62,7 @@ class Cost(BaseEntity):
     time_period_end: Optional[datetime] = None
     description: Optional[str] = None
     resource_id: Optional[str] = None  # If cost is from a resource
+    vendor_id: Optional[str] = None  # If cost is from a vendor
     cost_classification: Optional[str] = None  # "run" (Run/KTLO) or "change" (Change/Growth)
 
 
@@ -166,6 +168,7 @@ class Feature(BaseEntity):
     release_id: Optional[str] = None
     sprint_id: Optional[str] = None
     capacity_estimate: Optional[float] = None
+    diagram_xml: Optional[str] = None  # Draw.io XML diagram content
 
 
 class Resource(BaseEntity):
@@ -207,7 +210,6 @@ class Task(BaseEntity):
     phase_id: Optional[str] = None  # Link to phase
     title: str
     description: Optional[str] = None
-    effort: Optional[float] = None  # In hours or story points
     status: str  # "todo", "in_progress", "blocked", "done"
     priority: str  # "low", "medium", "high", "critical"
     dependencies: List[str] = []  # Task IDs (renamed from depends_on_task_ids)
@@ -220,6 +222,26 @@ class Task(BaseEntity):
     depends_on_task_ids: List[str] = []  # Deprecated - use dependencies
     velocity: Optional[float] = None  # Deprecated - calculate from actual_hours
     cost_classification: Optional[str] = None  # "run" (Run/KTLO) or "change" (Change/Growth)
+    diagram_xml: Optional[str] = None  # Draw.io XML diagram content
+    comments: List[dict] = []  # List of comment objects with id, text, author, created_at, source, email_id, email_subject
+
+
+class ProcessedEmail(BaseEntity):
+    """Processed email from Gmail for AI analysis."""
+    email_id: str  # Gmail message ID
+    thread_id: str  # Gmail thread ID
+    from_email: str
+    subject: str
+    received_date: datetime
+    processed_at: Optional[datetime] = None
+    status: str = "pending"  # "pending", "approved", "rejected", "created", "correlated", "sent"
+    suggested_entity_type: str  # "feature", "task", "response", "correlate_task"
+    suggested_data: dict = {}  # JSON with extracted data
+    created_entity_id: Optional[str] = None  # ID of created feature/task if approved
+    correlated_task_id: Optional[str] = None  # ID of existing task if correlated
+    gmail_label_id: Optional[str] = None  # Gmail label ID if labeled
+    email_body: Optional[str] = None  # Full email body text
+    email_html: Optional[str] = None  # Full email body HTML
 
 
 class Strategy(BaseEntity):
@@ -345,8 +367,9 @@ class Stakeholder(BaseEntity):
     module_id: Optional[str] = None  # Optional - can be module-specific or product-level
     name: str
     email: str
-    role: str
-    influence_level: str  # "low", "medium", "high", "critical"
+    company_name: Optional[str] = None
+    role: Optional[str] = None
+    influence_level: Optional[str] = None  # "low", "medium", "high", "critical"
     interests: Optional[List[str]] = None  # Areas of interest
     communication_preferences: Optional[str] = None  # JSON string or text
     update_frequency: Optional[str] = None  # "daily", "weekly", "monthly", "quarterly"
@@ -362,6 +385,17 @@ class StatusReport(BaseEntity):
     risks: Optional[List[str]] = []
     next_steps: Optional[List[str]] = []
     stakeholder_ids: List[str] = []  # List of stakeholder IDs who received this report
+
+
+class FeatureReport(BaseEntity):
+    """Feature report with selections and diagram."""
+    product_id: str
+    feature_id: str
+    name: str  # User-given name for the report
+    description: Optional[str] = None
+    diagram_xml: Optional[str] = None  # Generated diagram XML
+    include_diagram: bool = False
+    created_by: Optional[str] = None  # User ID who created it
 
 
 class Metric(BaseEntity):
@@ -417,9 +451,54 @@ class Module(BaseEntity):
     is_default: bool = False  # If True, this is the default module for the product
     status: str = "ideation"  # "ideation", "in_development", "production", "maintenance", "archived"
     # Configuration
-    enabled_steps: List[str] = []  # List of workflow steps: ["strategy", "discovery", "prioritization", "roadmap", "execution", "stakeholders", "metrics"]
-    step_order: List[str] = []  # Custom order of steps
     layout_config: Optional[dict] = None  # Custom layout preferences
     settings: Optional[dict] = None  # Additional module settings
     cost_classification: Optional[str] = None  # "run" (Run/KTLO) or "change" (Change/Growth)
+
+
+class CloudProvider(str, Enum):
+    """Cloud provider enum."""
+    AWS = "aws"
+    AZURE = "azure"
+    GCP = "gcp"
+
+
+class Vendor(BaseEntity):
+    """Vendor entity - organization-scoped."""
+    name: str
+    organization_id: Optional[str] = None  # Clerk organization ID (for future multi-tenancy)
+    contact_email: Optional[str] = None
+    contact_phone: Optional[str] = None
+    website: Optional[str] = None
+    description: Optional[str] = None
+
+
+class CloudConfig(BaseEntity):
+    """Cloud configuration for syncing costs from cloud providers."""
+    organization_id: str  # Clerk organization ID
+    provider: str  # CloudProvider value as string
+    name: str  # User-friendly name (e.g., "Production AWS Account")
+    is_active: bool = True
+    # Encrypted credential fields (JSON string)
+    credentials_encrypted: str
+    # Metadata
+    region: Optional[str] = None
+    account_id: Optional[str] = None  # AWS Account ID, Azure Subscription ID, GCP Project ID
+    last_synced_at: Optional[datetime] = None
+    last_sync_status: Optional[str] = None  # "success", "error", "pending"
+    last_sync_error: Optional[str] = None
+
+
+class EmailAccount(BaseEntity):
+    """Email account configuration for Gmail OAuth2."""
+    user_id: str  # Clerk user ID
+    email: str  # Email address
+    name: str  # Display name for the account
+    is_active: bool = True
+    is_default: bool = False
+    # Encrypted OAuth2 credentials (JSON string)
+    credentials_encrypted: str
+    # Metadata
+    last_authenticated_at: Optional[datetime] = None
+    last_sync_at: Optional[datetime] = None
 

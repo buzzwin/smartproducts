@@ -22,6 +22,7 @@ import type {
 import Modal from "../Modal";
 import FeatureForm from "../FeatureForm";
 import AIAssistant from "../AIAssistant";
+import VendorSelector from "../VendorSelector";
 
 interface CostFormProps {
   cost?: Cost;
@@ -67,6 +68,7 @@ export default function CostForm({
   const [cost_classification, setCost_classification] = useState<string>(
     (cost?.cost_classification as unknown as string) || ""
   );
+  const [vendorId, setVendorId] = useState<string>(cost?.vendor_id || "");
   const [resources, setResources] = useState<Resource[]>([]);
   const [modules, setModules] = useState<Module[]>([]);
   const [features, setFeatures] = useState<Feature[]>([]);
@@ -251,6 +253,7 @@ export default function CostForm({
           : undefined,
         description: description || undefined,
         resource_id: resourceId || undefined,
+        vendor_id: vendorId || undefined,
         cost_classification: (cost_classification || undefined) as
           | CostClassification
           | undefined,
@@ -771,6 +774,34 @@ export default function CostForm({
           </select>
         </div>
       </div>
+
+      {costType === "vendor" && (
+        <div style={{ marginBottom: "16px" }}>
+          <label
+            style={{
+              display: "block",
+              marginBottom: "8px",
+              fontWeight: 500,
+              fontSize: "14px",
+            }}
+          >
+            Vendor (Optional)
+          </label>
+          <VendorSelector
+            value={vendorId}
+            onValueChange={setVendorId}
+          />
+          <p
+            style={{
+              marginTop: "4px",
+              fontSize: "12px",
+              color: "hsl(var(--muted-foreground))",
+            }}
+          >
+            Select a vendor for this cost, or create/manage vendors using the buttons above.
+          </p>
+        </div>
+      )}
 
       <div
         style={{

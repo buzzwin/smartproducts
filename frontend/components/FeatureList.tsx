@@ -5,7 +5,7 @@ import { featuresAPI, productsAPI, resourcesAPI, modulesAPI } from "@/lib/api";
 import type { Feature, Product, Resource, Module } from "@/types";
 import FeatureForm from "./FeatureForm";
 import Modal from "./Modal";
-import DrawIORenderer from "./diagrams/DrawIORenderer";
+import DrawIOViewer from "./diagrams/DrawIOViewer";
 import {
   Select,
   SelectContent,
@@ -15,6 +15,82 @@ import {
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Image } from "lucide-react";
+
+// Component to handle product selection when creating a feature
+function FeatureFormWithProductSelector({
+  products,
+  onSuccess,
+  onCancel,
+}: {
+  products: Product[];
+  onSuccess: () => void;
+  onCancel: () => void;
+}) {
+  const [selectedProductId, setSelectedProductId] = useState<string>("");
+
+  if (products.length === 0) {
+    return (
+      <div style={{ padding: "20px", textAlign: "center" }}>
+        <p>No products available. Please create a product first.</p>
+      </div>
+    );
+  }
+
+  const selectedProduct = products.find((p) => p.id === selectedProductId);
+
+  return (
+    <div
+      style={{ padding: "20px" }}
+      onClick={(e) => e.stopPropagation()}
+      onMouseDown={(e) => e.stopPropagation()}
+    >
+      <div style={{ marginBottom: "20px" }}>
+        <Label htmlFor="product-select">Product *</Label>
+        <Select
+          value={selectedProductId || undefined}
+          onValueChange={(value) => {
+            setSelectedProductId(value);
+          }}
+        >
+          <SelectTrigger
+            id="product-select"
+            style={{ marginTop: "8px", cursor: "pointer" }}
+            onClick={(e) => {
+              e.stopPropagation();
+            }}
+            onMouseDown={(e) => {
+              e.stopPropagation();
+            }}
+          >
+            <SelectValue placeholder="Select a product" />
+          </SelectTrigger>
+          <SelectContent
+            className="z-[10001]"
+            onClick={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            {products.map((product) => (
+              <SelectItem
+                key={product.id}
+                value={product.id}
+                onClick={(e) => e.stopPropagation()}
+              >
+                {product.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      {selectedProduct && (
+        <FeatureForm
+          product={selectedProduct}
+          onSuccess={onSuccess}
+          onCancel={onCancel}
+        />
+      )}
+    </div>
+  );
+}
 
 interface FeatureListProps {
   product?: Product;
@@ -181,45 +257,18 @@ export default function FeatureList({
           {currentProduct ? `Features - ${currentProduct.name}` : "Features"}
         </h2>
         <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
-          {!product && (
-            <select
-              value={filterProductId}
-              onChange={(e) => setFilterProductId(e.target.value)}
-              style={{
-                padding: "8px 12px",
-                fontSize: "14px",
-                border: "1px solid #ddd",
-                borderRadius: "4px",
-              }}
-            >
-              <option value="">All Products</option>
-              {products.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
-          )}
           <button
             onClick={() => setShowCreateModal(true)}
-            disabled={!currentProduct && !filterProductId}
             style={{
               padding: "8px 16px",
               fontSize: "14px",
-              backgroundColor:
-                !currentProduct && !filterProductId ? "#ccc" : "#28a745",
+              backgroundColor: "#28a745",
               color: "#fff",
               border: "none",
               borderRadius: "4px",
-              cursor:
-                !currentProduct && !filterProductId ? "not-allowed" : "pointer",
+              cursor: "pointer",
               fontWeight: 500,
             }}
-            title={
-              !currentProduct && !filterProductId
-                ? "Please select a product first"
-                : ""
-            }
           >
             + Add Feature
           </button>
@@ -336,7 +385,7 @@ export default function FeatureList({
         onClose={() => setShowCreateModal(false)}
         title="Create Feature"
       >
-        {currentProduct && (
+        {currentProduct ? (
           <FeatureForm
             product={currentProduct}
             onSuccess={() => {
@@ -346,11 +395,16 @@ export default function FeatureList({
             }}
             onCancel={() => setShowCreateModal(false)}
           />
-        )}
-        {!currentProduct && (
-          <div style={{ padding: "20px", textAlign: "center" }}>
-            <p>Please select a product first to create a feature.</p>
-          </div>
+        ) : (
+          <FeatureFormWithProductSelector
+            products={products}
+            onSuccess={() => {
+              setShowCreateModal(false);
+              loadFeatures();
+              if (onUpdate) onUpdate();
+            }}
+            onCancel={() => setShowCreateModal(false)}
+          />
         )}
       </Modal>
 
@@ -393,7 +447,7 @@ export default function FeatureList({
         title={`Diagram: ${viewingDiagramFeature?.name || ""}`}
       >
         {viewingDiagramFeature && viewingDiagramFeature.diagram_xml && (
-          <DrawIORenderer xmlContent={viewingDiagramFeature.diagram_xml} />
+          <DrawIOViewer xmlContent={viewingDiagramFeature.diagram_xml} />
         )}
       </Modal>
     </div>

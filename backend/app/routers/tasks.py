@@ -2,6 +2,7 @@
 from typing import List, Optional
 from fastapi import APIRouter, HTTPException, Query, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
+from pydantic import BaseModel
 from database.database import RepositoryFactory, get_db_session
 from database.schema import (
     TaskCreate,
@@ -33,8 +34,8 @@ async def get_tasks(
             # Get module-specific tasks
             tasks = await repo.get_by_product_or_module(product_id, module_id)
         else:
-            # Get product-level tasks (module_id is None)
-            tasks = await repo.get_by_product_or_module(product_id, None)
+            # Get ALL tasks for the product (including those with and without module_id)
+            tasks = await repo.get_by_product(product_id)
         
         # Apply additional filters
         if feature_id:
@@ -155,7 +156,7 @@ async def create_task(task: TaskCreate, session: AsyncSession = Depends(get_db_s
         problem = await problem_repo.get_by_id(task.problem_id)
         if problem and created.id not in problem.task_ids:
             problem.task_ids.append(created.id)
-            await problem_repo.update(problem)
+            await problem_repo.update(problem.id, problem)
     
     return TaskResponse(**created.model_dump())
 
@@ -248,14 +249,14 @@ async def update_task(task_id: str, task_update: TaskUpdate, session: AsyncSessi
         old_problem = await problem_repo.get_by_id(old_problem_id)
         if old_problem and task_id in old_problem.task_ids:
             old_problem.task_ids.remove(task_id)
-            await problem_repo.update(old_problem)
+            await problem_repo.update(old_problem.id, old_problem)
     
     if new_problem_id and new_problem_id != old_problem_id:
         # Add task to new problem
         new_problem = await problem_repo.get_by_id(new_problem_id)
         if new_problem and task_id not in new_problem.task_ids:
             new_problem.task_ids.append(task_id)
-            await problem_repo.update(new_problem)
+            await problem_repo.update(new_problem.id, new_problem)
     
     return TaskResponse(**updated.model_dump())
 
@@ -268,4 +269,268 @@ async def delete_task(task_id: str, session: AsyncSession = Depends(get_db_sessi
     success = await repo.delete(task_id)
     if not success:
         raise HTTPException(status_code=404, detail="Task not found")
+
+
+class CommentCreate(BaseModel):
+    """Schema for creating a comment."""
+    text: str
+    author: Optional[str] = None
+    source: str = "manual"
+    email_id: Optional[str] = None
+    email_subject: Optional[str] = None
+
+
+@router.post("/{task_id}/comments")
+async def add_comment(
+    task_id: str,
+    comment: CommentCreate,
+    session: AsyncSession = Depends(get_db_session)
+):
+    """Add comment to task."""
+    import uuid
+    from datetime import datetime
+    
+    repo = RepositoryFactory.get_task_repository(session)
+    task = await repo.get_by_id(task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    
+    new_comment = {
+        "id": str(uuid.uuid4()),
+        "text": comment.text,
+        "author": comment.author or "System",
+        "created_at": datetime.utcnow().isoformat(),
+        "source": comment.source,
+        "email_id": comment.email_id,
+        "email_subject": comment.email_subject
+    }
+    
+    if not task.comments:
+        task.comments = []
+    task.comments.append(new_comment)
+    
+    await repo.update(task_id, task)
+    await session.commit()
+    
+    return {"message": "Comment added", "comment": new_comment}
+
+
+@router.get("/{task_id}/comments")
+async def get_comments(
+    task_id: str,
+    session: AsyncSession = Depends(get_db_session)
+):
+    """Get all comments for a task."""
+    repo = RepositoryFactory.get_task_repository(session)
+    task = await repo.get_by_id(task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    
+    return {"comments": task.comments or []}
+
+
+def _extract_text_from_content(content) -> str:
+    """Extract text from LLM response content, handling various formats."""
+    if isinstance(content, str):
+        return content.strip()
+    elif isinstance(content, list):
+        # Handle list of content blocks
+        texts = []
+        for item in content:
+            if isinstance(item, dict) and 'text' in item:
+                texts.append(item['text'])
+            elif isinstance(item, str):
+                texts.append(item)
+            else:
+                texts.append(str(item))
+        return " ".join(texts).strip()
+    elif isinstance(content, dict):
+        # Handle dict format like {'type': 'text', 'text': '...'}
+        if 'text' in content:
+            return str(content['text']).strip()
+        else:
+            return str(content).strip()
+    else:
+        return str(content).strip()
+
+
+class GenerateStatusEmailRequest(BaseModel):
+    """Request to generate status check email."""
+    resource_id: Optional[str] = None
+    resource_email: Optional[str] = None
+    resource_name: Optional[str] = None
+    user_name: Optional[str] = None
+
+
+class GenerateStatusEmailResponse(BaseModel):
+    """Response with generated email content."""
+    subject: str
+    body: str
+    to_email: str
+    to_name: str
+
+
+@router.post("/{task_id}/generate-status-email", response_model=GenerateStatusEmailResponse)
+async def generate_status_email(
+    task_id: str,
+    request: GenerateStatusEmailRequest,
+    session: AsyncSession = Depends(get_db_session)
+):
+    """Generate AI-powered status check email for a task."""
+    import os
+    from langchain_google_genai import ChatGoogleGenerativeAI
+    from langchain_core.messages import HumanMessage, SystemMessage
+    
+    # Get task
+    repo = RepositoryFactory.get_task_repository(session)
+    task = await repo.get_by_id(task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    
+    # Get resource info
+    resource_repo = RepositoryFactory.get_resource_repository(session)
+    resource_email = request.resource_email
+    resource_name = request.resource_name
+    
+    if request.resource_id:
+        resource = await resource_repo.get_by_id(request.resource_id)
+        if resource:
+            resource_email = resource.email or resource_email
+            resource_name = resource.name or resource_name
+    
+    if not resource_email:
+        raise HTTPException(status_code=400, detail="Resource email is required")
+    
+    if not resource_name:
+        resource_name = resource_email.split("@")[0]  # Use email username as fallback
+    
+    # Get recent comments (last 3)
+    comments = (task.comments or [])[-3:] if task.comments else []
+    recent_comments_text = "\n".join([
+        f"- {c.get('author', 'Unknown')} ({c.get('created_at', 'Unknown date')}): {c.get('text', '')}"
+        for c in comments
+    ]) if comments else "No recent comments."
+    
+    # Initialize LLM
+    api_key = os.getenv("GEMINI_API_KEY") or os.getenv("EMAIL_AGENT_AI_API_KEY")
+    if not api_key:
+        raise HTTPException(status_code=500, detail="GEMINI_API_KEY not configured")
+    
+    model_name = os.getenv("EMAIL_AGENT_AI_MODEL", "gemini-3-flash-preview")
+    llm = ChatGoogleGenerativeAI(
+        model=model_name,
+        google_api_key=api_key,
+        temperature=0.7
+    )
+    
+    # Get user name (sender name)
+    user_name = request.user_name or "User"
+    
+    # Build prompt
+    system_prompt = """You are a professional project manager writing a status check email. 
+Write a friendly, professional email asking for an update on a task. The email should:
+- Be concise and clear
+- Reference the task name and key details
+- Mention recent comments/updates if available
+- Ask specific questions about progress, blockers, or next steps
+- Maintain a collaborative and supportive tone
+- Be professional but not overly formal
+- Always sign the email with the sender's name provided (do NOT use "[Your Name]" or placeholder text)
+
+Return ONLY the email body text. Do not include subject line or headers."""
+    
+    task_info = f"""
+Task: {task.title}
+Status: {task.status}
+Priority: {task.priority}
+Description: {task.description or 'No description provided'}
+
+Recent Comments:
+{recent_comments_text}
+"""
+    
+    user_prompt = f"""Write a status check email to {resource_name} ({resource_email}) about this task:
+
+{task_info}
+
+The email should be signed with the sender's name: {user_name}
+
+Generate a professional, friendly email asking for a status update. Make sure to end with "Best regards," followed by the sender's name ({user_name})."""
+    
+    # Generate email
+    messages = [
+        SystemMessage(content=system_prompt),
+        HumanMessage(content=user_prompt)
+    ]
+    
+    response = await llm.ainvoke(messages)
+    # Extract text from response content (handles string, list, or dict formats)
+    email_body = _extract_text_from_content(response.content)
+    
+    # Generate subject
+    subject_prompt = f"""Generate a concise email subject line for a status check email about this task: "{task.title}".
+Keep it under 60 characters and make it clear it's a status check request."""
+    
+    subject_messages = [
+        SystemMessage(content="You are generating email subject lines. Return ONLY the subject text, no quotes or extra formatting."),
+        HumanMessage(content=subject_prompt)
+    ]
+    
+    subject_response = await llm.ainvoke(subject_messages)
+    # Extract text from response content
+    email_subject = _extract_text_from_content(subject_response.content)
+    email_subject = email_subject.strip('"').strip("'")
+    
+    # Ensure subject is reasonable length
+    if len(email_subject) > 60:
+        email_subject = email_subject[:57] + "..."
+    
+    return GenerateStatusEmailResponse(
+        subject=email_subject,
+        body=email_body,
+        to_email=resource_email,
+        to_name=resource_name
+    )
+
+
+class SendStatusEmailRequest(BaseModel):
+    """Request to send status check email."""
+    to_email: str
+    subject: str
+    body: str
+    cc: Optional[str] = None
+
+
+@router.post("/{task_id}/send-status-email")
+async def send_status_email(
+    task_id: str,
+    request: SendStatusEmailRequest,
+    session: AsyncSession = Depends(get_db_session)
+):
+    """Send status check email for a task."""
+    from app.services.gmail_service import GmailService
+    
+    # Get task
+    repo = RepositoryFactory.get_task_repository(session)
+    task = await repo.get_by_id(task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    
+    # Send email via Gmail
+    gmail_service = GmailService()
+    try:
+        result = gmail_service.send_email(
+            to=request.to_email,
+            subject=request.subject,
+            body=request.body,
+            cc=request.cc
+        )
+        
+        return {
+            "message": "Email sent successfully",
+            "message_id": result.get("id"),
+            "thread_id": result.get("threadId")
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to send email: {str(e)}")
 

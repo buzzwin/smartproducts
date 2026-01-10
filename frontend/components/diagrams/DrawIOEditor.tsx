@@ -273,13 +273,21 @@ export default function DrawIOEditor({
         // XML exported from editor
         if (message.data || message.xml) {
           const exportedXml = message.data || message.xml;
+          console.log(
+            "Draw.io export event received, XML length:",
+            exportedXml.length
+          );
           lastLoadedXmlRef.current = exportedXml;
           onXmlChange(exportedXml);
         }
       } else if (message.event === "save" || message.action === "save") {
-        // User saved in editor
+        // User saved in editor (clicked Save button)
         if (message.data || message.xml) {
           const savedXml = message.data || message.xml;
+          console.log(
+            "Draw.io save event received, XML length:",
+            savedXml.length
+          );
           lastLoadedXmlRef.current = savedXml;
           onXmlChange(savedXml);
         }
@@ -292,9 +300,23 @@ export default function DrawIOEditor({
           const autoSavedXml = message.data || message.xml;
           // Only update if it's different to avoid loops
           if (autoSavedXml !== lastLoadedXmlRef.current) {
+            console.log(
+              "Draw.io autosave event received, XML length:",
+              autoSavedXml.length
+            );
             lastLoadedXmlRef.current = autoSavedXml;
             onXmlChange(autoSavedXml);
           }
+        }
+      } else if (message.event === "change" || message.action === "change") {
+        // Diagram changed in editor - request current XML
+        if (iframeRef.current?.contentWindow) {
+          console.log("Draw.io change event detected, requesting current XML");
+          // Request the current XML from the editor
+          iframeRef.current.contentWindow.postMessage(
+            { action: "export", format: "xml" },
+            "https://embed.diagrams.net"
+          );
         }
       } else if (message.event === "exit" || message.action === "exit") {
         // User closed editor
@@ -344,14 +366,32 @@ export default function DrawIOEditor({
       });
     }, 10000); // 10 second timeout - then show iframe anyway
 
+    // Set up periodic sync to capture changes from Draw.io editor
+    // This ensures we capture changes even if Draw.io doesn't send autosave events
+    // We'll request the current XML periodically when the editor is ready
+    const syncInterval = setInterval(() => {
+      if (isReady && iframeRef.current?.contentWindow && !isLoading) {
+        // Request current XML from editor every 3 seconds when editor is ready
+        // This captures changes that might not trigger events
+        // Only do this if we haven't just loaded XML (to avoid unnecessary requests)
+        if (initialXmlLoadedRef.current) {
+          iframeRef.current.contentWindow.postMessage(
+            { action: "export", format: "xml" },
+            "https://embed.diagrams.net"
+          );
+        }
+      }
+    }, 3000); // Check every 3 seconds
+
     return () => {
       window.removeEventListener("message", handleMessage);
       if (iframe) {
         iframe.removeEventListener("load", handleIframeLoad);
       }
       clearTimeout(loadingTimeout);
+      clearInterval(syncInterval);
     };
-  }, [xmlContent, onXmlChange, onClose, isReady]);
+  }, [xmlContent, onXmlChange, onClose, isReady, isLoading]);
 
   const loadXmlIntoEditor = (xml: string) => {
     if (!iframeRef.current || !isReady) {
@@ -439,6 +479,7 @@ export default function DrawIOEditor({
       libraries: "1", // Enable shape libraries
       saveAndExit: "1", // Enable save and exit button
       proto: "json", // Use JSON protocol for messages (important!)
+      autosave: "1", // Enable autosave (sends autosave events)
     });
 
     return `https://embed.diagrams.net/?${params.toString()}`;

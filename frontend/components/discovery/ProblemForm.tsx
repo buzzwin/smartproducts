@@ -55,35 +55,84 @@ export default function ProblemForm({ problem, productId, moduleId, onSubmit, on
   }, [productId, moduleId]);
 
   const loadData = async () => {
+    if (!productId) {
+      setLoadingData(false);
+      setError('Product ID is required');
+      return;
+    }
+
     try {
       setLoadingData(true);
-      const [productData, modulesData, insightsData, tasksData, stakeholdersData] = await Promise.all([
+      setError(null);
+      
+      // Load data with individual error handling to be more resilient
+      const results = await Promise.allSettled([
         productsAPI.getById(productId),
         modulesAPI.getAll({ product_id: productId }),
         insightsAPI.getAll({ product_id: productId, module_id: moduleId }),
         tasksAPI.getAll({ product_id: productId, module_id: moduleId }),
         stakeholdersAPI.getByProduct(productId, moduleId),
       ]);
-      setProduct(productData);
-      setModules(modulesData);
-      if (moduleId) {
-        const selectedModule = modulesData.find(m => m.id === moduleId);
-        setModule(selectedModule || null);
+
+      // Handle product data
+      if (results[0].status === 'fulfilled') {
+        setProduct(results[0].value);
+      } else {
+        console.error('Failed to load product:', results[0].reason);
+        // Don't set error if product fails - form can still work
       }
-      setInsights(insightsData);
-      setTasks(tasksData);
-      setStakeholders(stakeholdersData);
+
+      // Handle modules data
+      if (results[1].status === 'fulfilled') {
+        const modulesData = results[1].value;
+        setModules(modulesData || []);
+        if (moduleId && modulesData) {
+          const selectedModule = modulesData.find(m => m.id === moduleId);
+          setModule(selectedModule || null);
+        }
+      } else {
+        console.error('Failed to load modules:', results[1].reason);
+        setModules([]);
+      }
+
+      // Handle insights data
+      if (results[2].status === 'fulfilled') {
+        setInsights(results[2].value || []);
+      } else {
+        console.error('Failed to load insights:', results[2].reason);
+        setInsights([]);
+      }
+
+      // Handle tasks data
+      if (results[3].status === 'fulfilled') {
+        setTasks(results[3].value || []);
+      } else {
+        console.error('Failed to load tasks:', results[3].reason);
+        setTasks([]);
+      }
+
+      // Handle stakeholders data
+      if (results[4].status === 'fulfilled') {
+        setStakeholders(results[4].value || []);
+      } else {
+        console.error('Failed to load stakeholders:', results[4].reason);
+        setStakeholders([]);
+      }
       
       // Load linked tasks if problem exists
       if (problem?.task_ids && problem.task_ids.length > 0) {
-        const linkedTasksData = await Promise.all(
-          problem.task_ids.map(id => tasksAPI.getById(id).catch(() => null))
+        const linkedTasksData = await Promise.allSettled(
+          problem.task_ids.map(id => tasksAPI.getById(id))
         );
-        setLinkedTasks(linkedTasksData.filter(t => t !== null) as Task[]);
+        const successfulTasks = linkedTasksData
+          .filter((result): result is PromiseFulfilledResult<Task> => result.status === 'fulfilled')
+          .map(result => result.value);
+        setLinkedTasks(successfulTasks);
       }
     } catch (err) {
       console.error('Failed to load data:', err);
-      setError('Failed to load product or module data');
+      // Only show error if critical data (product) failed
+      // Other data failures are handled individually above
     } finally {
       setLoadingData(false);
     }

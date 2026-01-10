@@ -11,7 +11,7 @@ from database.schema import (
 from database.models.base_models import Cost
 from app.services.resource_cost_service import ResourceCostService
 
-router = APIRouter(prefix="/api/costs", tags=["costs"])
+router = APIRouter(prefix="/api/unified-costs", tags=["unified-costs"])
 
 
 @router.get("", response_model=List[CostResponse])

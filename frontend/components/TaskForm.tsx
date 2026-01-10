@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useUser } from "@clerk/nextjs";
 import {
   tasksAPI,
   resourcesAPI,
@@ -35,12 +36,16 @@ import {
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Textarea } from "@/components/ui/textarea";
 import Modal from "./Modal";
 import FeatureForm from "./FeatureForm";
 import ProductForm from "./ProductForm";
 import ProblemForm from "./discovery/ProblemForm";
 import DiagramInput from "./diagrams/DiagramInput";
-import DrawIORenderer from "./diagrams/DrawIORenderer";
+import DrawIOViewer from "./diagrams/DrawIOViewer";
+import type { TaskComment } from "@/types";
+import StatusCheckEmailModal from "./tasks/StatusCheckEmailModal";
+import { Mail } from "lucide-react";
 
 interface TaskFormProps {
   task?: Task;
@@ -50,6 +55,18 @@ interface TaskFormProps {
   initialProductId?: string;
   initialModuleId?: string;
   initialProblemId?: string; // Pre-fill problem_id when creating task from problem
+  initialFeatureId?: string;
+  initialPhaseId?: string;
+  initialWorkstreamId?: string;
+  initialTitle?: string;
+  initialDescription?: string;
+  initialStatus?: TaskStatus;
+  initialPriority?: TaskPriority;
+  initialAssigneeIds?: string[];
+  initialDependsOnTaskIds?: string[];
+  initialDueDate?: string;
+  initialEstimatedHours?: number;
+  initialCostClassification?: CostClassification;
   onSuccess: () => void;
   onCancel: () => void;
 }
@@ -62,42 +79,101 @@ export default function TaskForm({
   initialProductId,
   initialModuleId,
   initialProblemId,
+  initialFeatureId,
+  initialPhaseId,
+  initialWorkstreamId,
+  initialTitle,
+  initialDescription,
+  initialStatus,
+  initialPriority,
+  initialAssigneeIds,
+  initialDependsOnTaskIds,
+  initialDueDate,
+  initialEstimatedHours,
+  initialCostClassification,
   onSuccess,
   onCancel,
 }: TaskFormProps) {
+  const { user } = useUser();
   const [productId, setProductId] = useState(
     task?.product_id || initialProductId || ""
   );
   const [moduleId, setModuleId] = useState(
     task?.module_id || initialModuleId || ""
   );
-  const [featureId, setFeatureId] = useState(task?.feature_id || "");
+  const [featureId, setFeatureId] = useState(
+    task?.feature_id || initialFeatureId || ""
+  );
   const [problemId, setProblemId] = useState(
     task?.problem_id || initialProblemId || ""
   );
-  const [title, setTitle] = useState(task?.title || "");
-  const [description, setDescription] = useState(task?.description || "");
-  const [status, setStatus] = useState<TaskStatus>(task?.status || "todo");
+  const [title, setTitle] = useState(task?.title || initialTitle || "");
+  const [description, setDescription] = useState(
+    task?.description || initialDescription || ""
+  );
+  const [status, setStatus] = useState<TaskStatus>(
+    task?.status || initialStatus || "todo"
+  );
   const [priority, setPriority] = useState<TaskPriority>(
-    task?.priority || "medium"
+    task?.priority || initialPriority || "medium"
   );
   const [assigneeIds, setAssigneeIds] = useState<string[]>(
-    task?.assignee_ids || []
+    task?.assignee_ids || initialAssigneeIds || []
   );
-  const [phaseId, setPhaseId] = useState(task?.phase_id || "");
-  const [workstreamId, setWorkstreamId] = useState(task?.workstream_id || "");
+
+  // Resolve assignee names to IDs when resources are available
+  useEffect(() => {
+    if (resources.length === 0) return;
+
+    setAssigneeIds((currentIds) => {
+      if (currentIds.length === 0) return currentIds;
+
+      const resolvedIds = currentIds
+        .map((idOrName) => {
+          // If it's already a valid UUID/ID format, check if it exists
+          if (resources.some((r) => r.id === idOrName)) {
+            return idOrName;
+          }
+          // Otherwise, try to find by name (case-insensitive)
+          const resource = resources.find(
+            (r) => r.name.toLowerCase() === idOrName.toLowerCase()
+          );
+          return resource?.id || null;
+        })
+        .filter((id): id is string => id !== null);
+
+      // Only update if there's a difference (to avoid infinite loops)
+      if (
+        resolvedIds.length !== currentIds.length ||
+        !resolvedIds.every((id, idx) => id === currentIds[idx])
+      ) {
+        return resolvedIds;
+      }
+      return currentIds;
+    });
+  }, [resources]); // Only depend on resources - run when resources are loaded
+  const [phaseId, setPhaseId] = useState(
+    task?.phase_id || initialPhaseId || ""
+  );
+  const [workstreamId, setWorkstreamId] = useState(
+    task?.workstream_id || initialWorkstreamId || ""
+  );
   const [dependsOnTaskIds, setDependsOnTaskIds] = useState<string[]>(
-    task?.depends_on_task_ids || []
+    task?.depends_on_task_ids || initialDependsOnTaskIds || []
   );
   const [dueDate, setDueDate] = useState(
-    task?.due_date ? task.due_date.split("T")[0] : ""
+    task?.due_date
+      ? task.due_date.split("T")[0]
+      : initialDueDate
+      ? initialDueDate.split("T")[0]
+      : ""
   );
   const [estimatedHours, setEstimatedHours] = useState<number | undefined>(
-    task?.estimated_hours
+    task?.estimated_hours || initialEstimatedHours
   );
   const [cost_classification, setCost_classification] = useState<
     CostClassification | ""
-  >(task?.cost_classification || "");
+  >(task?.cost_classification || initialCostClassification || "");
   const [diagram_xml, setDiagram_xml] = useState(task?.diagram_xml || "");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -114,24 +190,44 @@ export default function TaskForm({
   const [loadingFeatures, setLoadingFeatures] = useState(false);
   const [loadingProducts, setLoadingProducts] = useState(false);
   const [loadingProblems, setLoadingProblems] = useState(false);
+  const [comments, setComments] = useState<TaskComment[]>([]);
+  const [newComment, setNewComment] = useState("");
+  const [addingComment, setAddingComment] = useState(false);
+  const [loadingComments, setLoadingComments] = useState(false);
+  const [showStatusEmailModal, setShowStatusEmailModal] = useState(false);
 
   // Load products if not provided or empty
   useEffect(() => {
     const loadProductsData = async () => {
+      // Always load products from API if not provided or empty array
+      // This ensures products are available even when AI assistant doesn't provide them
       if (!products || products.length === 0) {
         try {
           setLoadingProducts(true);
+          console.log("TaskForm: Loading products from API...");
           const data = await productsAPI.getAll();
+          console.log("TaskForm: Products loaded:", data?.length || 0, data);
           setLoadedProducts(data || []);
-          // Set first product as default if no product is selected and no initialProductId
-          if (
-            data &&
-            data.length > 0 &&
-            !productId &&
-            !initialProductId &&
-            !task?.product_id
-          ) {
-            setProductId(data[0].id);
+          // Set initialProductId or first product as default if no product is selected
+          if (data && data.length > 0) {
+            if (
+              initialProductId &&
+              data.some((p) => p.id === initialProductId)
+            ) {
+              // Use initialProductId if provided and valid
+              console.log(
+                "TaskForm: Setting productId to initialProductId:",
+                initialProductId
+              );
+              setProductId(initialProductId);
+            } else if (!productId && !task?.product_id) {
+              // Otherwise use first product as default
+              console.log(
+                "TaskForm: Setting productId to first product:",
+                data[0].id
+              );
+              setProductId(data[0].id);
+            }
           }
         } catch (err) {
           console.error("Failed to load products:", err);
@@ -140,15 +236,21 @@ export default function TaskForm({
           setLoadingProducts(false);
         }
       } else {
+        // Use provided products
+        console.log("TaskForm: Using provided products:", products.length);
         setLoadedProducts(products);
-        // Set first product as default if no product is selected and no initialProductId
-        if (
-          products.length > 0 &&
-          !productId &&
-          !initialProductId &&
-          !task?.product_id
-        ) {
-          setProductId(products[0].id);
+        // Set initialProductId or first product as default if no product is selected
+        if (products.length > 0) {
+          if (
+            initialProductId &&
+            products.some((p) => p.id === initialProductId)
+          ) {
+            // Use initialProductId if provided and valid
+            setProductId(initialProductId);
+          } else if (!productId && !task?.product_id) {
+            // Otherwise use first product as default
+            setProductId(products[0].id);
+          }
         }
       }
     };
@@ -311,6 +413,69 @@ export default function TaskForm({
     loadProblemsForProduct();
   }, [productId, moduleId]);
 
+  // Load comments when task is available
+  useEffect(() => {
+    const loadComments = async () => {
+      if (task?.id) {
+        try {
+          setLoadingComments(true);
+          const response = await tasksAPI.getComments(task.id);
+          // Sort comments by created_at (newest first)
+          const sortedComments = (response.comments || []).sort(
+            (a: TaskComment, b: TaskComment) => {
+              const dateA = new Date(a.created_at).getTime();
+              const dateB = new Date(b.created_at).getTime();
+              return dateB - dateA; // Newest first
+            }
+          );
+          setComments(sortedComments);
+        } catch (err) {
+          console.error("Failed to load comments:", err);
+          setComments([]);
+        } finally {
+          setLoadingComments(false);
+        }
+      } else {
+        setComments([]);
+      }
+    };
+    loadComments();
+  }, [task?.id]);
+
+  const handleAddComment = async () => {
+    if (!task?.id || !newComment.trim()) return;
+
+    setAddingComment(true);
+    try {
+      const authorName =
+        user?.fullName ||
+        user?.firstName ||
+        user?.emailAddresses[0]?.emailAddress ||
+        "User";
+      await tasksAPI.addComment(task.id, {
+        text: newComment.trim(),
+        author: authorName,
+        source: "manual",
+      });
+      setNewComment("");
+      // Reload comments
+      const response = await tasksAPI.getComments(task.id);
+      const sortedComments = (response.comments || []).sort(
+        (a: TaskComment, b: TaskComment) => {
+          const dateA = new Date(a.created_at).getTime();
+          const dateB = new Date(b.created_at).getTime();
+          return dateB - dateA; // Newest first
+        }
+      );
+      setComments(sortedComments);
+    } catch (err) {
+      console.error("Failed to add comment:", err);
+      alert("Failed to add comment. Please try again.");
+    } finally {
+      setAddingComment(false);
+    }
+  };
+
   // Use loaded products if props are empty, otherwise use props
   const availableProducts =
     loadedProducts.length > 0 ? loadedProducts : products || [];
@@ -376,7 +541,7 @@ export default function TaskForm({
           diagram_xml && diagram_xml.trim() ? diagram_xml.trim() : undefined,
       };
 
-      if (task) {
+      if (task?.id) {
         await tasksAPI.update(task.id, taskData);
       } else {
         await tasksAPI.create(taskData);
@@ -390,7 +555,12 @@ export default function TaskForm({
   };
 
   return (
-    <form onSubmit={handleSubmit} style={{ padding: "clamp(16px, 4vw, 24px)" }}>
+    <form
+      onSubmit={handleSubmit}
+      style={{ padding: "clamp(16px, 4vw, 24px)" }}
+      onClick={(e) => e.stopPropagation()}
+      onMouseDown={(e) => e.stopPropagation()}
+    >
       <div
         style={{
           display: "flex",
@@ -502,13 +672,14 @@ export default function TaskForm({
 
       {diagram_xml && diagram_xml.trim() && (
         <div style={{ marginBottom: "16px" }}>
-          <DrawIORenderer xmlContent={diagram_xml} />
+          <DrawIOViewer xmlContent={diagram_xml} />
         </div>
       )}
 
       <Tabs defaultValue="details" className="w-full">
-        <TabsList className="grid w-full grid-cols-2">
+        <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="details">Details</TabsTrigger>
+          <TabsTrigger value="comments">Comments</TabsTrigger>
           <TabsTrigger value="diagram">Diagram</TabsTrigger>
         </TabsList>
 
@@ -553,38 +724,53 @@ export default function TaskForm({
                 Loading products...
               </div>
             ) : (
-              <Select
-                value={productId || "none"}
-                onValueChange={(value) => {
-                  if (value === "none") {
-                    setProductId("");
-                  } else {
-                    setProductId(value);
-                    setModuleId(""); // Reset module when product changes
-                    setFeatureId(""); // Reset feature when product changes
-                    setProblemId(""); // Reset problem when product changes
-                  }
-                }}
-                required
-                disabled={!!initialProductId}
+              <div
+                onClick={(e) => e.stopPropagation()}
+                onMouseDown={(e) => e.stopPropagation()}
               >
-                <SelectTrigger id="product_id">
-                  <SelectValue placeholder="Select a product" />
-                </SelectTrigger>
-                <SelectContent style={{ zIndex: 9999 }}>
-                  {availableProducts.length > 0 ? (
-                    availableProducts.map((product) => (
-                      <SelectItem key={product.id} value={product.id}>
-                        {product.name}
+                <Select
+                  value={productId || ""}
+                  onValueChange={(value) => {
+                    if (value === "none" || value === "") {
+                      setProductId("");
+                    } else {
+                      setProductId(value);
+                      setModuleId(""); // Reset module when product changes
+                      setFeatureId(""); // Reset feature when product changes
+                      setProblemId(""); // Reset problem when product changes
+                    }
+                  }}
+                  required
+                >
+                  <SelectTrigger
+                    id="product_id"
+                    onClick={(e) => e.stopPropagation()}
+                    onMouseDown={(e) => e.stopPropagation()}
+                    style={{ cursor: "pointer" }}
+                  >
+                    <SelectValue
+                      placeholder={
+                        availableProducts.length > 0
+                          ? "Select a product"
+                          : "No products available"
+                      }
+                    />
+                  </SelectTrigger>
+                  <SelectContent className="z-[10001]">
+                    {availableProducts.length > 0 ? (
+                      availableProducts.map((product) => (
+                        <SelectItem key={product.id} value={product.id}>
+                          {product.name}
+                        </SelectItem>
+                      ))
+                    ) : (
+                      <SelectItem value="none" disabled>
+                        No products available
                       </SelectItem>
-                    ))
-                  ) : (
-                    <SelectItem value="none" disabled>
-                      No products available
-                    </SelectItem>
-                  )}
-                </SelectContent>
-              </Select>
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
             )}
             {!loadingProducts && availableProducts.length === 0 && (
               <p style={{ fontSize: "12px", color: "#666", marginTop: "4px" }}>
@@ -658,7 +844,7 @@ export default function TaskForm({
                 <SelectTrigger id="module_id">
                   <SelectValue placeholder="No module (product-level)" />
                 </SelectTrigger>
-                <SelectContent style={{ zIndex: 9999 }}>
+                <SelectContent className="z-[10001]">
                   {modules.length > 0 ? (
                     <>
                       <SelectItem value="none">
@@ -744,7 +930,7 @@ export default function TaskForm({
                     <SelectTrigger id="feature_id" style={{ width: "100%" }}>
                       <SelectValue placeholder="Select a feature" />
                     </SelectTrigger>
-                    <SelectContent style={{ zIndex: 9999 }}>
+                    <SelectContent className="z-[10001]">
                       {availableFeatures.length > 0 ? (
                         <>
                           <SelectItem value="none">No feature</SelectItem>
@@ -833,7 +1019,7 @@ export default function TaskForm({
                     <SelectTrigger id="problem_id" style={{ width: "100%" }}>
                       <SelectValue placeholder="Select a problem" />
                     </SelectTrigger>
-                    <SelectContent style={{ zIndex: 9999 }}>
+                    <SelectContent className="z-[10001]">
                       {problems.length > 0 ? (
                         <>
                           <SelectItem value="none">No problem</SelectItem>
@@ -1321,6 +1507,112 @@ export default function TaskForm({
           </div>
         </TabsContent>
 
+        <TabsContent value="comments" className="mt-4">
+          {!task ? (
+            <div className="text-center py-8 text-muted-foreground">
+              Save the task first to add comments
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {/* Send Status Check Email Button */}
+              <div className="flex justify-end">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setShowStatusEmailModal(true)}
+                  className="mb-2"
+                >
+                  <Mail className="mr-2 h-4 w-4" />
+                  Send Status Check Email
+                </Button>
+              </div>
+
+              {/* Add Comment Form */}
+              <div className="border rounded-lg p-4 space-y-3">
+                <Label htmlFor="new-comment">Add Comment</Label>
+                <Textarea
+                  id="new-comment"
+                  value={newComment}
+                  onChange={(e) => setNewComment(e.target.value)}
+                  placeholder="Enter your comment..."
+                  rows={3}
+                  className="w-full"
+                />
+                <div className="flex justify-end">
+                  <Button
+                    type="button"
+                    onClick={handleAddComment}
+                    disabled={addingComment || !newComment.trim()}
+                    size="sm"
+                  >
+                    {addingComment ? "Adding..." : "Add Comment"}
+                  </Button>
+                </div>
+              </div>
+
+              {/* Comments List */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-semibold">
+                    Comments ({comments.length})
+                  </h4>
+                </div>
+                {loadingComments ? (
+                  <div className="text-center py-4 text-muted-foreground">
+                    Loading comments...
+                  </div>
+                ) : comments.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground border rounded-lg">
+                    No comments yet. Add the first comment above.
+                  </div>
+                ) : (
+                  <div className="space-y-3 max-h-96 overflow-y-auto">
+                    {comments.map((comment) => (
+                      <div
+                        key={comment.id}
+                        className="border rounded-lg p-3 bg-muted/30"
+                      >
+                        <div className="flex items-start justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium text-sm">
+                              {comment.author || "Unknown"}
+                            </span>
+                            {comment.source && (
+                              <span className="text-xs px-2 py-0.5 rounded bg-secondary text-secondary-foreground">
+                                {comment.source}
+                              </span>
+                            )}
+                          </div>
+                          <span className="text-xs text-muted-foreground">
+                            {new Date(comment.created_at).toLocaleString(
+                              undefined,
+                              {
+                                year: "numeric",
+                                month: "short",
+                                day: "numeric",
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              }
+                            )}
+                          </span>
+                        </div>
+                        <div className="text-sm whitespace-pre-wrap">
+                          {comment.text}
+                        </div>
+                        {comment.email_subject && (
+                          <div className="mt-2 pt-2 border-t text-xs text-muted-foreground">
+                            From email: {comment.email_subject}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </TabsContent>
+
         <TabsContent value="diagram" className="mt-4">
           <DiagramInput
             value={diagram_xml}
@@ -1472,6 +1764,40 @@ export default function TaskForm({
             onCancel={() => setShowProblemModal(false)}
           />
         </Modal>
+      )}
+
+      {/* Status Check Email Modal */}
+      {task && (
+        <StatusCheckEmailModal
+          taskId={task.id}
+          taskTitle={title}
+          isOpen={showStatusEmailModal}
+          onClose={() => setShowStatusEmailModal(false)}
+          onSent={() => {
+            // Optionally reload comments after sending email
+            if (task) {
+              const reloadComments = async () => {
+                try {
+                  setLoadingComments(true);
+                  const response = await tasksAPI.getComments(task.id);
+                  const sortedComments = (response.comments || []).sort(
+                    (a: TaskComment, b: TaskComment) => {
+                      const dateA = new Date(a.created_at).getTime();
+                      const dateB = new Date(b.created_at).getTime();
+                      return dateB - dateA; // Newest first
+                    }
+                  );
+                  setComments(sortedComments);
+                } catch (err) {
+                  console.error("Failed to reload comments:", err);
+                } finally {
+                  setLoadingComments(false);
+                }
+              };
+              reloadComments();
+            }
+          }}
+        />
       )}
     </form>
   );

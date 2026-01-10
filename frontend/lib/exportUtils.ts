@@ -198,7 +198,9 @@ export function exportFeatureReportToExcel(
   resources: Resource[],
   phases: Phase[],
   workstreams: Workstream[],
-  modules: Module[]
+  modules: Module[],
+  diagramXml?: string,
+  diagramPng?: string
 ) {
   const wb = XLSX.utils.book_new();
 
@@ -306,6 +308,21 @@ export function exportFeatureReportToExcel(
   ];
   XLSX.utils.book_append_sheet(wb, tasksWs, 'Tasks');
 
+  // Add diagram sheet if provided
+  if (diagramXml) {
+    const diagramData = [
+      ['Feature Diagram'],
+      [''],
+      ['This diagram was generated based on the feature and tasks data.'],
+      [''],
+      ['Diagram XML:'],
+      [diagramXml],
+    ];
+    const diagramWs = XLSX.utils.aoa_to_sheet(diagramData);
+    diagramWs['!cols'] = [{ wch: 100 }];
+    XLSX.utils.book_append_sheet(wb, diagramWs, 'Diagram');
+  }
+
   // Generate filename
   const safeFeatureName = feature.name.replace(/[^a-z0-9]/gi, '-').toLowerCase();
   const filename = `feature-report-${safeFeatureName}-${new Date().toISOString().split('T')[0]}.xlsx`;
@@ -314,14 +331,16 @@ export function exportFeatureReportToExcel(
   XLSX.writeFile(wb, filename);
 }
 
-export function exportFeatureReportToPDF(
+export async function exportFeatureReportToPDF(
   feature: Feature,
   product: Product | undefined,
   tasks: Task[],
   resources: Resource[],
   phases: Phase[],
   workstreams: Workstream[],
-  modules: Module[]
+  modules: Module[],
+  diagramXml?: string,
+  diagramPng?: string
 ) {
   const doc = new jsPDF('portrait', 'mm', 'a4');
   const pageWidth = doc.internal.pageSize.getWidth();
@@ -474,6 +493,118 @@ export function exportFeatureReportToPDF(
       alternateRowStyles: { fillColor: [245, 245, 245] },
       margin: { left: margin, right: margin },
     });
+  }
+
+  // Add diagram section if provided
+  if (diagramPng || diagramXml) {
+    // Get the final Y position after the table
+    const finalY = (doc as any).lastAutoTable?.finalY || yPos;
+    yPos = finalY + 10;
+
+    if (yPos > pageHeight - 40) {
+      doc.addPage();
+      yPos = margin;
+    }
+
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Feature Diagram', margin, yPos);
+    yPos += 8;
+
+    // If PNG is available, add it as an image
+    if (diagramPng) {
+      try {
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'normal');
+        doc.text(
+          'A visual diagram representing the feature structure and task relationships:',
+          margin,
+          yPos
+        );
+        yPos += 8;
+
+        // Convert data URL to image and add to PDF
+        const imgData = diagramPng;
+        const imgWidth = pageWidth - margin * 2;
+        const maxImgHeight = pageHeight - yPos - margin - 20; // Leave space for footer
+        
+        // Calculate image dimensions maintaining aspect ratio
+        const img = new Image();
+        img.src = imgData;
+        
+        // Wait for image to load, then add to PDF
+        await new Promise<void>((resolve) => {
+          img.onload = () => {
+            const aspectRatio = img.width / img.height;
+            let imgHeight = imgWidth / aspectRatio;
+            
+            // If image is too tall, scale it down
+            if (imgHeight > maxImgHeight) {
+              imgHeight = maxImgHeight;
+              const scaledWidth = imgHeight * aspectRatio;
+              doc.addImage(imgData, 'PNG', margin, yPos, scaledWidth, imgHeight);
+            } else {
+              doc.addImage(imgData, 'PNG', margin, yPos, imgWidth, imgHeight);
+            }
+            
+            yPos += imgHeight + 10;
+            resolve();
+          };
+          img.onerror = () => {
+            // If image fails to load, fall back to XML text
+            doc.setFontSize(10);
+            doc.text('Note: Diagram image could not be loaded. XML is available in Excel export.', margin, yPos);
+            yPos += 8;
+            resolve();
+          };
+        });
+      } catch (err) {
+        console.error('Error adding diagram image to PDF:', err);
+        doc.setFontSize(10);
+        doc.text('Note: Diagram image could not be added. XML is available in Excel export.', margin, yPos);
+        yPos += 8;
+      }
+    } else if (diagramXml) {
+      // Fallback to XML text if PNG is not available
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
+      doc.text(
+        'A visual diagram representing the feature structure and task relationships:',
+        margin,
+        yPos
+      );
+      yPos += 8;
+
+      doc.text(
+        'Note: Diagram visualization is available in the Excel export. ' +
+        'The diagram XML is included below for reference.',
+        margin,
+        yPos
+      );
+      yPos += 8;
+
+      // Add diagram XML as text (truncated if too long)
+      const maxXmlLength = 2000; // Limit to prevent PDF from being too large
+      const xmlToInclude = diagramXml.length > maxXmlLength 
+        ? diagramXml.substring(0, maxXmlLength) + '... (truncated)'
+        : diagramXml;
+      
+      const xmlLines = doc.splitTextToSize(
+        xmlToInclude,
+        pageWidth - margin * 2
+      );
+      doc.setFont('courier', 'normal');
+      doc.setFontSize(8);
+      
+      xmlLines.forEach((line: string) => {
+        if (yPos > pageHeight - 20) {
+          doc.addPage();
+          yPos = margin;
+        }
+        doc.text(line, margin, yPos);
+        yPos += 3;
+      });
+    }
   }
 
   // Generate filename

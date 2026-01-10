@@ -41,6 +41,7 @@ class Product(Base):
     stakeholders = relationship("Stakeholder", back_populates="product", cascade="all, delete-orphan")
     modules = relationship("Module", back_populates="product", cascade="all, delete-orphan")
     status_reports = relationship("StatusReport", back_populates="product", cascade="all, delete-orphan")
+    feature_reports = relationship("FeatureReport", back_populates="product", cascade="all, delete-orphan")
     metrics = relationship("Metric", back_populates="product", cascade="all, delete-orphan")
     outcomes = relationship("Outcome", back_populates="product", cascade="all, delete-orphan")
     prioritization_models = relationship("PrioritizationModel", back_populates="product", cascade="all, delete-orphan")
@@ -180,6 +181,7 @@ class Feature(Base):
     sprint_id = Column(String, nullable=True)
     capacity_estimate = Column(Float, nullable=True)
     cost_classification = Column(String, nullable=True, index=True)  # "run" (Run/KTLO) or "change" (Change/Growth)
+    diagram_xml = Column(Text, nullable=True)  # Draw.io XML diagram content
     created_at = Column(DateTime, default=func.now(), nullable=False)
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now(), nullable=False)
     
@@ -189,6 +191,7 @@ class Feature(Base):
     parent_feature = relationship("Feature", remote_side=[id], backref="child_features")
     tasks = relationship("Task", back_populates="feature", cascade="all, delete-orphan")
     insights = relationship("Insight", back_populates="feature")
+    feature_reports = relationship("FeatureReport", back_populates="feature", cascade="all, delete-orphan")
     problems = relationship("Problem", back_populates="feature")
     decisions = relationship("Decision", back_populates="feature", cascade="all, delete-orphan")
     metrics = relationship("Metric", back_populates="feature")
@@ -271,7 +274,6 @@ class Task(Base):
     phase_id = Column(String, ForeignKey("phases.id"), nullable=True, index=True)
     title = Column(String, nullable=False)
     description = Column(Text, nullable=True)
-    effort = Column(Float, nullable=True)  # In hours or story points
     status = Column(String, nullable=False, index=True)  # "todo", "in_progress", "blocked", "done"
     priority = Column(String, nullable=False, index=True)  # "low", "medium", "high", "critical"
     dependencies = Column(JSON, nullable=False, default=list)  # Task IDs
@@ -284,6 +286,8 @@ class Task(Base):
     depends_on_task_ids = Column(JSON, nullable=True, default=list)  # Deprecated - use dependencies
     velocity = Column(Float, nullable=True)  # Deprecated - calculate from actual_hours
     cost_classification = Column(String, nullable=True, index=True)  # "run" (Run/KTLO) or "change" (Change/Growth)
+    diagram_xml = Column(Text, nullable=True)  # Draw.io XML diagram content
+    comments = Column(JSON, nullable=False, default=list)  # List of comment objects
     created_at = Column(DateTime, default=func.now(), nullable=False)
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now(), nullable=False)
     
@@ -424,8 +428,9 @@ class Stakeholder(Base):
     module_id = Column(String, ForeignKey("modules.id"), nullable=True, index=True)  # Optional - can be module-specific or product-level
     name = Column(String, nullable=False)
     email = Column(String, nullable=False, index=True)
-    role = Column(String, nullable=False)
-    influence_level = Column(String, nullable=False, index=True)  # "low", "medium", "high", "critical"
+    company_name = Column(String, nullable=True)
+    role = Column(String, nullable=True)
+    influence_level = Column(String, nullable=True, index=True)  # "low", "medium", "high", "critical"
     interests = Column(JSON, nullable=True)  # Areas of interest
     communication_preferences = Column(Text, nullable=True)
     update_frequency = Column(String, nullable=True)
@@ -454,6 +459,26 @@ class StatusReport(Base):
     
     # Relationships
     product = relationship("Product", back_populates="status_reports")
+
+
+class FeatureReport(Base):
+    """Feature report table."""
+    __tablename__ = "feature_reports"
+    
+    id = Column(String, primary_key=True, index=True)
+    product_id = Column(String, ForeignKey("products.id"), nullable=False, index=True)
+    feature_id = Column(String, ForeignKey("features.id"), nullable=False, index=True)
+    name = Column(String, nullable=False)
+    description = Column(Text, nullable=True)
+    diagram_xml = Column(Text, nullable=True)
+    include_diagram = Column(Boolean, default=False, nullable=False)
+    created_by = Column(String, nullable=True)
+    created_at = Column(DateTime, default=func.now(), nullable=False)
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now(), nullable=False)
+    
+    # Relationships
+    product = relationship("Product", back_populates="feature_reports")
+    feature = relationship("Feature", back_populates="feature_reports")
 
 
 class Metric(Base):
@@ -572,6 +597,24 @@ class Roadmap(Base):
     product = relationship("Product", back_populates="roadmaps")
 
 
+class Vendor(Base):
+    """Vendor table."""
+    __tablename__ = "vendors"
+    
+    id = Column(String, primary_key=True, index=True)
+    name = Column(String, nullable=False, index=True)
+    organization_id = Column(String, nullable=True, index=True)  # Clerk organization ID (for future multi-tenancy)
+    contact_email = Column(String, nullable=True)
+    contact_phone = Column(String, nullable=True)
+    website = Column(String, nullable=True)
+    description = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=func.now(), nullable=False)
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now(), nullable=False)
+    
+    # Relationships
+    costs = relationship("Cost", back_populates="vendor", cascade="all, delete-orphan")
+
+
 class Cost(Base):
     """Cost table."""
     __tablename__ = "costs"
@@ -593,6 +636,7 @@ class Cost(Base):
     time_period_end = Column(DateTime, nullable=True)
     description = Column(Text, nullable=True)
     resource_id = Column(String, ForeignKey("resources.id"), nullable=True, index=True)
+    vendor_id = Column(String, ForeignKey("vendors.id"), nullable=True, index=True)
     cost_classification = Column(String, nullable=True, index=True)  # "run" (Run/KTLO) or "change" (Change/Growth)
     created_at = Column(DateTime, default=func.now(), nullable=False)
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now(), nullable=False)
@@ -601,6 +645,7 @@ class Cost(Base):
     product = relationship("Product", back_populates="costs")
     cost_type_ref = relationship("CostType", foreign_keys=[cost_type_id])
     resource = relationship("Resource", foreign_keys=[resource_id])
+    vendor = relationship("Vendor", foreign_keys=[vendor_id])
 
 
 class RevenueModel(Base):
@@ -688,6 +733,29 @@ class Notification(Base):
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now(), nullable=False)
 
 
+class ProcessedEmail(Base):
+    """Processed email table for AI analysis."""
+    __tablename__ = "processed_emails"
+    
+    id = Column(String, primary_key=True, index=True)
+    email_id = Column(String, nullable=False, index=True)  # Gmail message ID
+    thread_id = Column(String, nullable=False, index=True)  # Gmail thread ID
+    from_email = Column(String, nullable=False)
+    subject = Column(String, nullable=False)
+    received_date = Column(DateTime, nullable=False, index=True)
+    processed_at = Column(DateTime, nullable=True)
+    status = Column(String, nullable=False, default="pending", index=True)  # "pending", "approved", "rejected", "created", "correlated", "sent"
+    suggested_entity_type = Column(String, nullable=False, index=True)  # "feature", "task", "response", "correlate_task"
+    suggested_data = Column(JSON, nullable=False, default=dict)  # Extracted data
+    created_entity_id = Column(String, nullable=True, index=True)  # ID of created feature/task
+    correlated_task_id = Column(String, nullable=True, index=True)  # ID of correlated task
+    gmail_label_id = Column(String, nullable=True)  # Gmail label ID
+    email_body = Column(Text, nullable=True)  # Full email body text
+    email_html = Column(Text, nullable=True)  # Full email body HTML
+    created_at = Column(DateTime, default=func.now(), nullable=False)
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now(), nullable=False)
+
+
 class Module(Base):
     """Module table."""
     __tablename__ = "modules"
@@ -699,8 +767,6 @@ class Module(Base):
     owner_id = Column(String, nullable=True, index=True)  # Clerk user ID
     is_default = Column(Integer, nullable=False, default=0)  # SQLite boolean
     status = Column(String, nullable=False, default="ideation", index=True)  # "ideation", "in_development", "production", "maintenance", "archived"
-    enabled_steps = Column(JSON, nullable=False, default=list)  # List of workflow steps
-    step_order = Column(JSON, nullable=False, default=list)  # Custom order of steps
     layout_config = Column(JSON, nullable=True)  # Custom layout preferences
     settings = Column(JSON, nullable=True)  # Additional module settings
     cost_classification = Column(String, nullable=True, index=True)  # "run" (Run/KTLO) or "change" (Change/Growth)
@@ -711,4 +777,40 @@ class Module(Base):
     product = relationship("Product", back_populates="modules")
     tasks = relationship("Task", back_populates="module", cascade="all, delete-orphan")
     features = relationship("Feature", back_populates="module", cascade="all, delete-orphan")
+
+
+class CloudConfig(Base):
+    """Cloud configuration table."""
+    __tablename__ = "cloud_configs"
+    
+    id = Column(String, primary_key=True, index=True)
+    organization_id = Column(String, nullable=False, index=True)
+    provider = Column(String, nullable=False, index=True)  # "aws", "azure", "gcp"
+    name = Column(String, nullable=False)
+    is_active = Column(Integer, nullable=False, default=1, index=True)  # SQLite boolean
+    credentials_encrypted = Column(Text, nullable=False)  # Encrypted JSON string
+    region = Column(String, nullable=True)
+    account_id = Column(String, nullable=True)
+    last_synced_at = Column(DateTime, nullable=True)
+    last_sync_status = Column(String, nullable=True)  # "success", "error", "pending"
+    last_sync_error = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=func.now(), nullable=False)
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now(), nullable=False)
+
+
+class EmailAccount(Base):
+    """Email account table."""
+    __tablename__ = "email_accounts"
+    
+    id = Column(String, primary_key=True, index=True)
+    user_id = Column(String, nullable=False, index=True)
+    email = Column(String, nullable=False, index=True)
+    name = Column(String, nullable=False)
+    is_active = Column(Integer, nullable=False, default=1, index=True)  # SQLite boolean
+    is_default = Column(Integer, nullable=False, default=0, index=True)  # SQLite boolean
+    credentials_encrypted = Column(Text, nullable=False)  # Encrypted JSON string
+    last_authenticated_at = Column(DateTime, nullable=True)
+    last_sync_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=func.now(), nullable=False)
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now(), nullable=False)
 

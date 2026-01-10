@@ -129,11 +129,22 @@ export interface Task {
   due_date?: string;
   cost_classification?: CostClassification;  // 'run' (Run/KTLO) or 'change' (Change/Growth)
   diagram_xml?: string;  // Draw.io XML diagram content
+  comments?: TaskComment[];  // List of comments
   // Computed cost fields (calculated from resource assignments)
   estimated_cost?: number;  // Calculated from estimated_hours × resource costs
   total_cost?: number;  // Calculated from actual_hours (or estimated_hours) × resource costs
   created_at?: string;
   updated_at?: string;
+}
+
+export interface TaskComment {
+  id: string;
+  text: string;
+  author: string;
+  created_at: string;
+  source: 'manual' | 'email' | 'system';
+  email_id?: string;
+  email_subject?: string;
 }
 
 export type StrategyType = 'vision' | 'goals' | 'themes' | 'assumptions' | 'risks' | 'strategy' | 'okr';
@@ -279,6 +290,19 @@ export interface StatusReport {
   risks?: string[];
   next_steps?: string[];
   stakeholder_ids: string[];
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface FeatureReport {
+  id: string;
+  product_id: string;
+  feature_id: string;
+  name: string;
+  description?: string;
+  diagram_xml?: string;
+  include_diagram: boolean;
+  created_by?: string;
   created_at?: string;
   updated_at?: string;
 }
@@ -451,6 +475,18 @@ export interface AzureCostSyncResponse {
   errors: string[];
 }
 
+export interface Vendor {
+  id: string;
+  name: string;
+  organization_id?: string;
+  contact_email?: string;
+  contact_phone?: string;
+  website?: string;
+  description?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
 export interface Cost {
   id: string;
   product_id: string;
@@ -469,6 +505,7 @@ export interface Cost {
   time_period_end?: string;
   description?: string;
   resource_id?: string;
+  vendor_id?: string;
   cost_classification?: CostClassification;  // 'run' (Run/KTLO) or 'change' (Change/Growth)
   created_at?: string;
   updated_at?: string;
@@ -584,5 +621,87 @@ export interface TCOBreakdown {
     period_cost: number;
     description?: string;
   }>;
+}
+
+// Email Agent Types
+export type ProcessedEmailStatus = 'pending' | 'approved' | 'rejected' | 'created' | 'correlated' | 'sent';
+export type SuggestedEntityType = 'feature' | 'task' | 'response' | 'correlate_task';
+
+export interface ProcessedEmail {
+  id: string;
+  email_id: string;
+  thread_id: string;
+  from_email: string;
+  subject: string;
+  received_date: string;
+  processed_at?: string;
+  status: ProcessedEmailStatus;
+  suggested_entity_type: SuggestedEntityType;
+  suggested_data: Record<string, any>;
+  created_entity_id?: string;
+  correlated_task_id?: string;
+  gmail_label_id?: string;
+  email_body?: string;
+  email_html?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface EmailSuggestion extends ProcessedEmail {
+  // Parsed suggested_data based on entity_type
+}
+
+export interface ResponseSuggestion extends EmailSuggestion {
+  suggested_response_text: string;
+  tone: string;
+  key_points: string[];
+}
+
+export interface CorrelationSuggestion extends EmailSuggestion {
+  matched_task_id: string;
+  confidence_score: number;
+  status_update?: string;
+  comment_text?: string;
+}
+
+// Email Account Types
+export interface EmailAccount {
+  id: string;
+  user_id: string;
+  email: string;
+  name: string;
+  is_active: boolean;
+  is_default: boolean;
+  last_authenticated_at?: string;
+  last_sync_at?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface EmailAccountCreate {
+  name: string;
+}
+
+export interface EmailAccountUpdate {
+  name?: string;
+  is_active?: boolean;
+  is_default?: boolean;
+}
+
+// OAuth Flow Types
+export interface OAuthInitRequest {
+  name: string;
+}
+
+export interface OAuthInitResponse {
+  oauth_url: string;
+  state: string;
+  account_id: string;
+}
+
+export interface OAuthCallbackRequest {
+  code: string;
+  state: string;
+  account_id: string;
 }
 

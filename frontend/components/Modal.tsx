@@ -14,12 +14,14 @@ export default function Modal({ isOpen, onClose, title, children }: ModalProps) 
 
   return (
     <div
-      className="fixed inset-0 bg-black/50 dark:bg-black/70 flex items-center justify-center z-[9999] p-4"
+      className="fixed inset-0 bg-black/50 dark:bg-black/70 flex items-center justify-center z-[10000] p-4"
       onClick={onClose}
     >
       <div
         className="bg-card border border-border rounded-lg max-w-[700px] w-full max-h-[calc(100vh-32px)] overflow-auto shadow-lg dark:shadow-2xl flex flex-col"
         onClick={(e) => e.stopPropagation()}
+        onMouseDown={(e) => e.stopPropagation()}
+        style={{ position: 'relative', zIndex: 10000, pointerEvents: 'auto' }}
       >
         <div className="flex justify-between items-center p-4 sm:p-5 border-b border-border flex-shrink-0">
           <h2 className="m-0 text-lg sm:text-xl font-semibold text-foreground">{title}</h2>

@@ -6,11 +6,12 @@ export async function POST(request: NextRequest) {
     const { prompt, formType, context, fieldOptions, section, productId } = await request.json();
     
     // Fetch product context if productId is provided
+    // Use internal API_URL (not NEXT_PUBLIC) to call backend directly from server
     let productContext: ProductContext | null = null;
     if (productId) {
       try {
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-        const contextResponse = await fetch(`${apiUrl}/api/products/${productId}/context`);
+        const backendUrl = process.env.API_URL || process.env.BACKEND_URL || 'http://localhost:8000';
+        const contextResponse = await fetch(`${backendUrl}/api/products/${productId}/context`);
         if (contextResponse.ok) {
           productContext = await contextResponse.json();
         } else {

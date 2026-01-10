@@ -24,6 +24,7 @@ import CostList from "@/components/economics/CostList";
 import ProblemListManagement from "@/components/discovery/ProblemListManagement";
 import ReportsView from "@/components/reports/ReportsView";
 import Modal from "@/components/Modal";
+import VendorList from "@/components/VendorList";
 import { UserButton } from "@/components/UserButton";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -38,6 +39,8 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import Link from "next/link";
 import { Settings } from "lucide-react";
 import Chatbot from "@/components/Chatbot";
+import EmailControlStation from "@/components/email-agent/EmailControlStation";
+import CostTotalsSummary from "@/components/CostTotalsSummary";
 
 export default function Home() {
   const [products, setProducts] = useState<Product[]>([]);
@@ -52,12 +55,14 @@ export default function Home() {
     | "modules"
     | "features"
     | "resources"
+    | "vendors"
     | "tasks"
     | "stakeholders"
     | "phases"
     | "strategies"
     | "costs"
     | "problems"
+    | "email-control"
   >("products");
   const [selectedProductForStakeholders, setSelectedProductForStakeholders] =
     useState<string | null>(null);
@@ -259,8 +264,7 @@ export default function Home() {
               }}
             >
               <li>
-                Backend server is running at{" "}
-                {process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}
+                Backend server should be accessible via API proxy
               </li>
               <li>MongoDB is running and accessible</li>
               <li>Check browser console (F12) for errors</li>
@@ -281,11 +285,10 @@ export default function Home() {
           <h3 style={{ marginBottom: "12px" }}>Troubleshooting:</h3>
           <ul style={{ marginLeft: "20px", lineHeight: "1.8" }}>
             <li>
-              Make sure the backend server is running at{" "}
-              {process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}
+              Make sure the backend server is running and accessible via the API proxy
             </li>
             <li>Check the browser console (F12) for more details</li>
-            <li>Verify CORS settings if you see network errors</li>
+            <li>Verify API proxy routes are working if you see network errors</li>
           </ul>
           <Button onClick={loadData} className="mt-4">
             Retry
@@ -420,6 +423,16 @@ export default function Home() {
               </Button>
               <Button
                 type="button"
+                onClick={() => setManagementSubTab("vendors")}
+                variant={
+                  managementSubTab === "vendors" ? "secondary" : "outline"
+                }
+                size="sm"
+              >
+                Vendors
+              </Button>
+              <Button
+                type="button"
                 onClick={() => setManagementSubTab("tasks")}
                 variant={managementSubTab === "tasks" ? "secondary" : "outline"}
                 size="sm"
@@ -474,12 +487,25 @@ export default function Home() {
               >
                 Problems
               </Button>
+              <Button
+                type="button"
+                onClick={() => setManagementSubTab("email-control")}
+                variant={
+                  managementSubTab === "email-control" ? "secondary" : "outline"
+                }
+                size="sm"
+              >
+                Email Control
+              </Button>
             </div>
           )}
 
           {/* Main Content */}
           {activeTab === "workspace" && (
-            <ProductWorkspace onUpdate={loadData} />
+            <div className="space-y-4">
+              <CostTotalsSummary />
+              <ProductWorkspace onUpdate={loadData} />
+            </div>
           )}
 
           {activeTab === "reports" && <ReportsView />}
@@ -560,6 +586,10 @@ export default function Home() {
 
               {managementSubTab === "resources" && (
                 <ResourceList onUpdate={loadData} />
+              )}
+
+              {managementSubTab === "vendors" && (
+                <VendorList onUpdate={loadData} />
               )}
 
               {managementSubTab === "tasks" && (
@@ -786,6 +816,9 @@ export default function Home() {
 
               {managementSubTab === "problems" && (
                 <ProblemListManagement onUpdate={loadData} />
+              )}
+              {managementSubTab === "email-control" && (
+                <EmailControlStation />
               )}
             </>
           )}

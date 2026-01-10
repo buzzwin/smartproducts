@@ -13,7 +13,7 @@ interface ExtractionResponse {
 
 export async function POST(request: NextRequest) {
   try {
-    const { message, conversationHistory, productId } = await request.json();
+    const { message, conversationHistory, productId, moduleId, featureId } = await request.json();
     
     // Get Gemini API key from environment variable
     const apiKey = process.env.GEMINI_API_KEY;
@@ -75,12 +75,31 @@ If no entities can be extracted, return:
   "message": "I couldn't find any entities to create in your message. Could you be more specific?"
 }`;
 
+    // Build context information
+    let contextInfo = '';
+    if (productId || moduleId || featureId) {
+      contextInfo = '\n\nCONTEXT (pre-selected by user):\n';
+      if (productId) {
+        contextInfo += `- Product ID: ${productId}\n`;
+        contextInfo += `  IMPORTANT: Use this product_id for any entities that require a product_id (modules, features, tasks, problems, strategies, costs, workstreams).\n`;
+      }
+      if (moduleId) {
+        contextInfo += `- Module ID: ${moduleId}\n`;
+        contextInfo += `  IMPORTANT: Use this module_id for any entities that can have a module_id (features, tasks, problems, strategies, costs).\n`;
+      }
+      if (featureId) {
+        contextInfo += `- Feature ID: ${featureId}\n`;
+        contextInfo += `  IMPORTANT: Use this feature_id for any entities that can have a feature_id (tasks).\n`;
+      }
+      contextInfo += '\n';
+    }
+
     // Build conversation context
     const conversationContext = conversationHistory 
       ? `Previous conversation:\n${conversationHistory.map((msg: any) => `${msg.role}: ${msg.content}`).join('\n')}\n\n`
       : '';
 
-    const fullPrompt = `${systemPrompt}\n\n${conversationContext}Current user message: ${message}\n\nAnalyze this message and extract any entities that can be created. Return only valid JSON.`;
+    const fullPrompt = `${systemPrompt}${contextInfo}\n${conversationContext}Current user message: ${message}\n\nAnalyze this message and extract any entities that can be created. Use the CONTEXT information above to automatically fill in product_id, module_id, and feature_id fields when applicable. Return only valid JSON.`;
 
     // Call Gemini API
     const response = await fetch(

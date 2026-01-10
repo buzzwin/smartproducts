@@ -59,6 +59,16 @@ async def create_feature(feature: FeatureCreate, session: AsyncSession = Depends
     if not product:
         raise HTTPException(status_code=400, detail="Product not found")
     
+    # Validate module exists if provided
+    if feature.module_id:
+        module_repo = RepositoryFactory.get_module_repository(session)
+        module = await module_repo.get_by_id(feature.module_id)
+        if not module:
+            raise HTTPException(status_code=400, detail="Module not found")
+        # Validate module belongs to the same product
+        if module.product_id != feature.product_id:
+            raise HTTPException(status_code=400, detail="Module does not belong to the specified product")
+    
     feature_model = Feature(**feature.model_dump())
     created = await repo.create(feature_model)
     return FeatureResponse(**created.model_dump())

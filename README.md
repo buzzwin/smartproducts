@@ -41,8 +41,19 @@ pip install -r requirements.txt
 cat > backend/.env.local << EOF
 DATABASE_TYPE=mongodb
 DATABASE_URL=mongodb://localhost:27017/finops
+ENCRYPTION_KEY=your-32-byte-encryption-key-here
+AWS_DEFAULT_REGION=us-east-1
 EOF
 ```
+
+**Important**: Generate an encryption key for cloud credentials:
+
+```bash
+# Generate a secure encryption key (32 bytes, base64-encoded)
+python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+```
+
+Copy the output and set it as `ENCRYPTION_KEY` in your `.env.local` file.
 
 5. Initialize the database:
 
@@ -95,7 +106,14 @@ EOF
 
 See `frontend/CLERK_SETUP.md` for detailed Clerk authentication setup instructions.
 
-4. Start the development server:
+4. Install additional UI dependencies (if needed):
+
+```bash
+# Install Radix UI packages for tooltip and accordion (optional - components work without them)
+npm install @radix-ui/react-tooltip @radix-ui/react-accordion
+```
+
+5. Start the development server:
 
 ```bash
 npm run dev
@@ -205,6 +223,28 @@ The platform supports multiple databases through a repository pattern:
 - **Outcomes**: Track expected outcomes with achievement status
 - **Status Reports**: Generate status reports with highlights, risks, and next steps
 
+### Cloud Cost Integration
+
+- **Cloud Configurations**: Securely store and manage cloud provider credentials (AWS, Azure, GCP)
+- **AWS Cost Sync**: Automatically sync monthly costs from AWS Cost Explorer API
+- **Azure Cost Sync**: Automatically sync monthly costs from Azure Cost Management API
+- **Credential Encryption**: All credentials encrypted at rest using AES-256
+- **Multi-Provider Support**: Extensible architecture for AWS, Azure, and GCP
+- **Cost Mapping**: Automatic mapping of cloud services to cost categories and types
+- **Deduplication**: Smart cost deduplication to prevent duplicate entries
+
+#### Setting Up Azure Cost Sync
+
+For detailed step-by-step instructions with screenshots and troubleshooting, see the [Azure Credential Setup Guide](docs/AZURE_CREDENTIAL_SETUP.md).
+
+**Quick Overview:**
+
+1. Create a Service Principal (App Registration) in Azure AD
+2. Create a client secret and save it immediately (only shown once)
+3. Grant "Cost Management Reader" role to the Service Principal on your subscription
+4. Get your Subscription ID, Tenant ID, Client ID, and Client Secret
+5. Configure these credentials in Organization → Cloud Configurations → Azure tab
+
 ### Additional Features
 
 - **AI Assistant**: AI-powered form filling and content generation
@@ -235,6 +275,27 @@ The API includes comprehensive endpoints for all features. Key endpoints include
 - `POST /api/costs` - Create a cost item
 - `PUT /api/costs/{id}` - Update a cost item
 - `DELETE /api/costs/{id}` - Delete a cost item
+
+### Cloud Configurations
+
+- `GET /api/cloud-configs` - List all cloud configs for organization
+- `GET /api/cloud-configs/{id}` - Get cloud config by ID (credentials never returned)
+- `POST /api/cloud-configs` - Create new cloud configuration
+- `PUT /api/cloud-configs/{id}` - Update cloud configuration
+- `DELETE /api/cloud-configs/{id}` - Delete cloud configuration
+- `POST /api/cloud-configs/{id}/test` - Test cloud credentials
+- `POST /api/cloud-configs/{id}/activate` - Activate configuration
+- `POST /api/cloud-configs/{id}/deactivate` - Deactivate configuration
+
+### AWS Costs
+
+- `POST /api/aws-costs/sync` - Sync AWS costs for a product
+- `GET /api/aws-costs/preview` - Preview AWS costs without importing
+
+### Azure Costs
+
+- `POST /api/azure-costs/sync` - Sync Azure costs for a product
+- `GET /api/azure-costs/preview` - Preview Azure costs without importing
 
 ### Unified Costs (New Model)
 
@@ -275,6 +336,8 @@ The API includes comprehensive endpoints for all features. Key endpoints include
 - **SQLAlchemy**: ORM with async support
 - **Repository Pattern**: Database-agnostic data access layer
 - **Pydantic**: Data validation and serialization
+- **Boto3**: AWS SDK for Cost Explorer API integration
+- **Cryptography**: AES-256 encryption for secure credential storage
 
 ### Frontend
 
@@ -285,6 +348,55 @@ The API includes comprehensive endpoints for all features. Key endpoints include
 - **Tailwind CSS**: Utility-first CSS framework
 - **Recharts**: Data visualization library
 - **Lucide React**: Icon library
+
+## Cloud Configuration Setup
+
+### AWS Setup
+
+1. **Create IAM User**:
+   - Sign in to AWS Management Console (https://console.aws.amazon.com)
+   - Navigate to IAM → Users
+   - Create a new user or select existing user
+   - Attach the following policy (or create custom policy):
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "ce:GetCostAndUsage",
+        "ce:GetDimensionValues",
+        "ce:GetService"
+      ],
+      "Resource": "*"
+    }
+  ]
+}
+```
+
+2. **Generate Access Keys**:
+
+   - Select the user → Go to "Security credentials" tab
+   - Click "Create access key"
+   - Select "Application running outside AWS" as use case
+   - Copy Access Key ID and Secret Access Key (Secret Key is only shown once)
+
+3. **Configure in Application**:
+   - Go to Organization → Cloud Configurations
+   - Click "Add Configuration" for AWS
+   - Enter the credentials and save
+   - Test the connection to verify credentials work
+
+### Security Best Practices
+
+- Use IAM users (not root account credentials)
+- Grant minimum required permissions (principle of least privilege)
+- Rotate access keys regularly (every 90 days recommended)
+- Never share credentials or commit them to version control
+- Use separate IAM users for different applications
+- Store encryption key securely (consider using AWS KMS or similar in production)
 
 ## Documentation
 

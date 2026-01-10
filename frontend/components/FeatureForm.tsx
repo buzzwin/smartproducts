@@ -24,12 +24,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import Modal from "./Modal";
 import ResourceForm from "./ResourceForm";
 import DiagramInput from "./diagrams/DiagramInput";
-import DrawIORenderer from "./diagrams/DrawIORenderer";
+import DrawIOViewer from "./diagrams/DrawIOViewer";
 
 interface FeatureFormProps {
   feature?: Feature;
   product: Product;
   initialModuleId?: string;
+  initialName?: string;
+  initialDescription?: string;
   onSuccess: () => void;
   onCancel: () => void;
 }
@@ -38,11 +40,15 @@ export default function FeatureForm({
   feature,
   product,
   initialModuleId,
+  initialName,
+  initialDescription,
   onSuccess,
   onCancel,
 }: FeatureFormProps) {
-  const [name, setName] = useState(feature?.name || "");
-  const [description, setDescription] = useState(feature?.description || "");
+  const [name, setName] = useState(feature?.name || initialName || "");
+  const [description, setDescription] = useState(
+    feature?.description || initialDescription || ""
+  );
   const [owner, setOwner] = useState(feature?.owner || "");
   const [moduleId, setModuleId] = useState(
     feature?.module_id || initialModuleId || ""
@@ -258,7 +264,12 @@ export default function FeatureForm({
   };
 
   return (
-    <form onSubmit={handleSubmit} style={{ padding: "clamp(16px, 4vw, 24px)" }}>
+    <form
+      onSubmit={handleSubmit}
+      style={{ padding: "clamp(16px, 4vw, 24px)" }}
+      onClick={(e) => e.stopPropagation()}
+      onMouseDown={(e) => e.stopPropagation()}
+    >
       <div
         style={{
           display: "flex",
@@ -316,7 +327,7 @@ export default function FeatureForm({
 
       {diagram_xml && diagram_xml.trim() && (
         <div style={{ marginBottom: "16px" }}>
-          <DrawIORenderer xmlContent={diagram_xml} />
+          <DrawIOViewer xmlContent={diagram_xml} />
         </div>
       )}
 
@@ -565,7 +576,11 @@ export default function FeatureForm({
                   Loading modules...
                 </div>
               ) : (
-                <div style={{ width: "100%" }}>
+                <div
+                  style={{ width: "100%" }}
+                  onClick={(e) => e.stopPropagation()}
+                  onMouseDown={(e) => e.stopPropagation()}
+                >
                   <Select
                     value={moduleId || "none"}
                     onValueChange={(value) => {
@@ -573,10 +588,15 @@ export default function FeatureForm({
                       setModuleId(value === "none" ? "" : value);
                     }}
                   >
-                    <SelectTrigger id="module-select" style={{ width: "100%" }}>
+                    <SelectTrigger
+                      id="module-select"
+                      style={{ width: "100%", cursor: "pointer" }}
+                      onClick={(e) => e.stopPropagation()}
+                      onMouseDown={(e) => e.stopPropagation()}
+                    >
                       <SelectValue placeholder="Select module" />
                     </SelectTrigger>
-                    <SelectContent style={{ zIndex: 9999 }}>
+                    <SelectContent className="z-[10001]">
                       <SelectItem value="none">
                         No module (product-level)
                       </SelectItem>
