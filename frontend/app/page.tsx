@@ -37,7 +37,7 @@ import {
 } from "@/components/ui/select";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import Link from "next/link";
-import { Settings } from "lucide-react";
+import { Settings, Activity } from "lucide-react";
 import Chatbot from "@/components/Chatbot";
 import EmailControlStation from "@/components/email-agent/EmailControlStation";
 import CostTotalsSummary from "@/components/CostTotalsSummary";
@@ -305,6 +305,12 @@ export default function Home() {
         <div className="flex gap-3 items-center">
           <ThemeToggle />
           <SignedIn>
+            <Link href="/health">
+              <Button variant="outline" size="sm">
+                <Activity className="h-4 w-4 mr-2" />
+                Health
+              </Button>
+            </Link>
             <Link href="/organization">
               <Button variant="outline" size="sm">
                 <Settings className="h-4 w-4 mr-2" />
