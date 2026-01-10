@@ -11,6 +11,9 @@ interface ExtractionResponse {
   message: string;
 }
 
+// Mark this route as dynamic since it makes dynamic API calls
+export const dynamic = 'force-dynamic';
+
 export async function POST(request: NextRequest) {
   try {
     const { message, conversationHistory, productId, moduleId, featureId } = await request.json();

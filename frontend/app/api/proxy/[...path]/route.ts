@@ -11,6 +11,9 @@
 import { NextRequest } from 'next/server';
 import { proxyToBackend } from '@/lib/apiProxy';
 
+// Mark this route as dynamic since it proxies dynamic requests
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: NextRequest) {
   return handleProxy(request);
 }

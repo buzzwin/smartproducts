@@ -160,7 +160,6 @@ export default function StatusCheckEmailModal({
       isOpen={isOpen}
       onClose={onClose}
       title="Send Status Check Email"
-      size="large"
     >
       <div className="space-y-6">
         {/* Resource Selection */}

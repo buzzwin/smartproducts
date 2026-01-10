@@ -1,6 +1,9 @@
 import { auth, clerkClient } from '@clerk/nextjs/server';
 import { NextResponse } from 'next/server';
 
+// Mark this route as dynamic since it uses headers() via auth()
+export const dynamic = 'force-dynamic';
+
 export async function POST(request: Request) {
   try {
     const { userId, orgId, orgRole } = await auth();

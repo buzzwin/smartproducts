@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import type { ProductContext } from '@/lib/productContext';
 
+// Mark this route as dynamic since it makes dynamic API calls
+export const dynamic = 'force-dynamic';
+
 export async function POST(request: NextRequest) {
   try {
     const { prompt, formType, context, fieldOptions, section, productId } = await request.json();

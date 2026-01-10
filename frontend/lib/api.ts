@@ -327,6 +327,7 @@ export const tasksAPI = {
     );
   },
   getById: (id: string) => fetchAPI<import('../types').Task>(`/api/tasks/${id}`),
+  get: (id: string) => fetchAPI<import('../types').Task>(`/api/tasks/${id}`), // Alias for getById
   create: (task: Omit<import('../types').Task, 'id' | 'created_at' | 'updated_at'>) =>
     fetchAPI<import('../types').Task>('/api/tasks', {
       method: 'POST',
