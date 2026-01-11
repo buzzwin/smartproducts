@@ -15,6 +15,8 @@ import { Badge } from "@/components/ui/badge";
 import CostForm from "./CostForm";
 import Modal from "../Modal";
 import { Plus, Edit, Trash2 } from "lucide-react";
+import ShareButton from "../ShareButton";
+import { getCostShareUrl } from "@/lib/share";
 import {
   Select,
   SelectContent,
@@ -263,6 +265,11 @@ export default function CostList({ onUpdate }: CostListProps) {
                     </CardDescription>
                   </div>
                   <div className="flex gap-2">
+                    <ShareButton
+                      url={getCostShareUrl(cost.id)}
+                      size="sm"
+                      variant="outline"
+                    />
                     <Button
                       size="sm"
                       variant="outline"

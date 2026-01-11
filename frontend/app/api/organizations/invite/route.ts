@@ -40,12 +40,28 @@ export async function POST(request: Request) {
       );
     }
 
+    // Get the app URL from environment or request headers
+    let appUrl: string;
+    if (process.env.NEXT_PUBLIC_APP_URL) {
+      appUrl = process.env.NEXT_PUBLIC_APP_URL;
+    } else if (process.env.NEXT_PUBLIC_VERCEL_URL) {
+      appUrl = `https://${process.env.NEXT_PUBLIC_VERCEL_URL}`;
+    } else {
+      // Fallback to request origin
+      const url = new URL(request.url);
+      appUrl = `${url.protocol}//${url.host}`;
+    }
+    
+    // Set redirect URL to app home page after invitation acceptance
+    const redirectUrl = `${appUrl.replace(/\/$/, '')}/`;
+
     // Create invitation using Clerk
     const client = await clerkClient();
     const invitation = await client.organizations.createOrganizationInvitation({
       organizationId: orgId,
       emailAddress: email,
       role: role || 'org:member',
+      redirectUrl: redirectUrl,
     });
 
     return NextResponse.json({

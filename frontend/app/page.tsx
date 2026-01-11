@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import { SignedIn, SignedOut, SignInButton } from "@clerk/nextjs";
 import {
   productsAPI,
@@ -42,7 +43,8 @@ import Chatbot from "@/components/Chatbot";
 import EmailControlStation from "@/components/email-agent/EmailControlStation";
 import CostTotalsSummary from "@/components/CostTotalsSummary";
 
-export default function Home() {
+function HomeContent() {
+  const searchParams = useSearchParams();
   const [products, setProducts] = useState<Product[]>([]);
   const [scenarios, setScenarios] = useState<CostScenario[]>([]);
   const [loading, setLoading] = useState(true);
@@ -50,6 +52,42 @@ export default function Home() {
   const [activeTab, setActiveTab] = useState<
     "workspace" | "management" | "reports"
   >("workspace");
+  
+  // Handle deep link parameters
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      // Check for shared cost/task from sessionStorage (set by share pages)
+      const sharedCostId = sessionStorage.getItem('sharedCostId');
+      const sharedTaskId = sessionStorage.getItem('sharedTaskId');
+      const sharedProductId = sessionStorage.getItem('sharedProductId');
+      const sharedModuleId = sessionStorage.getItem('sharedModuleId');
+      
+      // Check URL params for direct links
+      const urlProduct = searchParams?.get('product');
+      const urlModule = searchParams?.get('module');
+      const urlTab = searchParams?.get('tab');
+      const urlStep = searchParams?.get('step');
+      const urlCostId = searchParams?.get('costId');
+      const urlTaskId = searchParams?.get('taskId');
+      
+      // Use URL params or sessionStorage
+      const productId = urlProduct || sharedProductId;
+      const moduleId = urlModule || sharedModuleId || null;
+      
+      if (productId) {
+        // Clear sessionStorage after reading
+        if (sharedCostId) sessionStorage.removeItem('sharedCostId');
+        if (sharedTaskId) sessionStorage.removeItem('sharedTaskId');
+        if (sharedProductId) sessionStorage.removeItem('sharedProductId');
+        if (sharedModuleId) sessionStorage.removeItem('sharedModuleId');
+        
+        // Set tab and step if provided
+        if (urlTab) {
+          setActiveTab(urlTab as "workspace" | "management" | "reports");
+        }
+      }
+    }
+  }, [searchParams]);
   const [managementSubTab, setManagementSubTab] = useState<
     | "products"
     | "modules"
@@ -836,5 +874,22 @@ export default function Home() {
         <Chatbot />
       </SignedIn>
     </div>
+  );
+}
+
+export default function Home() {
+  return (
+    <Suspense fallback={
+      <div className="container">
+        <div
+          className="loading"
+          style={{ textAlign: "center", padding: "40px" }}
+        >
+          <div>Loading...</div>
+        </div>
+      </div>
+    }>
+      <HomeContent />
+    </Suspense>
   );
 }

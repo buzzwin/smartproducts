@@ -23,6 +23,8 @@ import TaskForm from "./TaskForm";
 import Modal from "./Modal";
 import DrawIOViewer from "./diagrams/DrawIOViewer";
 import { Download, FileSpreadsheet, FileText, Image, Eye } from "lucide-react";
+import ShareButton from "./ShareButton";
+import { getTaskShareUrl } from "@/lib/share";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -701,6 +703,12 @@ export default function TaskList({
                         Diagram
                       </button>
                     )}
+                    <ShareButton
+                      url={getTaskShareUrl(task.id)}
+                      size="sm"
+                      variant="outline"
+                      className="inline-flex"
+                    />
                     <button
                       onClick={() => setViewingTask(task)}
                       style={{

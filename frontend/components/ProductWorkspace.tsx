@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   productsAPI,
   strategiesAPI,
@@ -81,12 +82,15 @@ interface StepStatus {
 
 export default function ProductWorkspace({ onUpdate }: ProductWorkspaceProps) {
   const { user } = useUser();
+  const searchParams = useSearchParams();
   const [products, setProducts] = useState<Product[]>([]);
   const [selectedProductId, setSelectedProductId] = useState<string>("");
   const [activeStep, setActiveStep] = useState<WorkflowStep>("overview");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showCreateProductModal, setShowCreateProductModal] = useState(false);
+  const [highlightedCostId, setHighlightedCostId] = useState<string | null>(null);
+  const [highlightedTaskId, setHighlightedTaskId] = useState<string | null>(null);
 
   // Module state
   const [modules, setModules] = useState<Module[]>([]);
@@ -109,6 +113,67 @@ export default function ProductWorkspace({ onUpdate }: ProductWorkspaceProps) {
   useEffect(() => {
     loadProducts();
   }, []);
+
+  // Handle deep link parameters from URL
+  useEffect(() => {
+    if (typeof window !== 'undefined' && products.length > 0) {
+      // Check URL params
+      const urlProduct = searchParams?.get('product');
+      const urlModule = searchParams?.get('module');
+      const urlStep = searchParams?.get('step');
+      const urlCostId = searchParams?.get('costId');
+      const urlTaskId = searchParams?.get('taskId');
+      
+      // Check sessionStorage (set by share pages)
+      const sharedProductId = sessionStorage.getItem('sharedProductId');
+      const sharedModuleId = sessionStorage.getItem('sharedModuleId');
+      const sharedCostId = sessionStorage.getItem('sharedCostId');
+      const sharedTaskId = sessionStorage.getItem('sharedTaskId');
+      
+      const productId = urlProduct || sharedProductId;
+      const moduleId = urlModule || sharedModuleId || null;
+      const costId = urlCostId || sharedCostId;
+      const taskId = urlTaskId || sharedTaskId;
+      const step = urlStep || (costId ? 'cost' : taskId ? 'execution' : null);
+      
+      if (productId) {
+        // Find product and set it
+        const product = products.find(p => p.id === productId);
+        if (product && selectedProductId !== productId) {
+          setSelectedProductId(productId);
+          
+          // Set module if provided
+          if (moduleId) {
+            setSelectedModuleId(moduleId);
+          }
+          
+          // Set step if provided
+          if (step) {
+            const validSteps: WorkflowStep[] = ['overview', 'strategy', 'discovery', 'execution', 'stakeholders', 'metrics', 'cost'];
+            if (validSteps.includes(step as WorkflowStep)) {
+              setActiveStep(step as WorkflowStep);
+            }
+          }
+          
+          // Set highlighted items
+          if (costId) {
+            setHighlightedCostId(costId);
+            setActiveStep('cost');
+          }
+          if (taskId) {
+            setHighlightedTaskId(taskId);
+            setActiveStep('execution');
+          }
+          
+          // Clear sessionStorage after reading
+          if (sharedProductId) sessionStorage.removeItem('sharedProductId');
+          if (sharedModuleId) sessionStorage.removeItem('sharedModuleId');
+          if (sharedCostId) sessionStorage.removeItem('sharedCostId');
+          if (sharedTaskId) sessionStorage.removeItem('sharedTaskId');
+        }
+      }
+    }
+  }, [products, searchParams, selectedProductId]);
 
   // Debug: Log state changes
   useEffect(() => {
@@ -419,25 +484,6 @@ export default function ProductWorkspace({ onUpdate }: ProductWorkspaceProps) {
 
   // Debug: Log activeStep changes
   useEffect(() => {
-    // #region agent log
-    fetch("http://127.0.0.1:7242/ingest/968d187c-a049-4e90-98da-550ce5ae9fdb", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        location: "ProductWorkspace.tsx:368",
-        message: "activeStep state changed",
-        data: {
-          activeStep,
-          workflowStepIds: workflowSteps.map((s) => s.id),
-          hasCostStep: workflowSteps.some((s) => s.id === "cost"),
-        },
-        timestamp: Date.now(),
-        sessionId: "debug-session",
-        runId: "run1",
-        hypothesisId: "A",
-      }),
-    }).catch(() => {});
-    // #endregion
     console.log("activeStep changed to:", activeStep);
     console.log(
       "workflowSteps:",
@@ -628,55 +674,9 @@ export default function ProductWorkspace({ onUpdate }: ProductWorkspaceProps) {
         {/* Workflow Tabs Navigation */}
         {selectedProductId && (
           <>
-            {/* #region agent log */}
-            {(() => {
-              fetch(
-                "http://127.0.0.1:7242/ingest/968d187c-a049-4e90-98da-550ce5ae9fdb",
-                {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({
-                    location: "ProductWorkspace.tsx:542",
-                    message: "Tabs component render",
-                    data: {
-                      tabsValue: activeStep,
-                      selectedProductId: !!selectedProductId,
-                    },
-                    timestamp: Date.now(),
-                    sessionId: "debug-session",
-                    runId: "run1",
-                    hypothesisId: "E",
-                  }),
-                }
-              ).catch(() => {});
-              return null;
-            })()}
-            {/* #endregion */}
             <Tabs
               value={activeStep}
               onValueChange={(value) => {
-                // #region agent log
-                fetch(
-                  "http://127.0.0.1:7242/ingest/968d187c-a049-4e90-98da-550ce5ae9fdb",
-                  {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                      location: "ProductWorkspace.tsx:545",
-                      message: "Tabs onValueChange called",
-                      data: {
-                        clickedValue: value,
-                        currentActiveStep: activeStep,
-                        isCost: value === "cost",
-                      },
-                      timestamp: Date.now(),
-                      sessionId: "debug-session",
-                      runId: "run1",
-                      hypothesisId: "B",
-                    }),
-                  }
-                ).catch(() => {});
-                // #endregion
                 console.log(
                   "Tab clicked, value:",
                   value,
@@ -700,53 +700,12 @@ export default function ProductWorkspace({ onUpdate }: ProductWorkspaceProps) {
                   {workflowSteps.map((step) => {
                     const Icon = step.icon;
                     const status = getStepStatus(step.id);
-                    // #region agent log
-                    if (step.id === "cost") {
-                      fetch(
-                        "http://127.0.0.1:7242/ingest/968d187c-a049-4e90-98da-550ce5ae9fdb",
-                        {
-                          method: "POST",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({
-                            location: "ProductWorkspace.tsx:558",
-                            message: "Rendering TabsTrigger for cost",
-                            data: { stepId: step.id, stepTitle: step.title },
-                            timestamp: Date.now(),
-                            sessionId: "debug-session",
-                            runId: "run1",
-                            hypothesisId: "A",
-                          }),
-                        }
-                      ).catch(() => {});
-                    }
-                    // #endregion
                     return (
                       <TabsTrigger
                         key={step.id}
                         value={step.id}
                         className="flex items-center gap-2"
-                        onClick={() => {
-                          // #region agent log
-                          if (step.id === "cost") {
-                            fetch(
-                              "http://127.0.0.1:7242/ingest/968d187c-a049-4e90-98da-550ce5ae9fdb",
-                              {
-                                method: "POST",
-                                headers: { "Content-Type": "application/json" },
-                                body: JSON.stringify({
-                                  location: "ProductWorkspace.tsx:565",
-                                  message: "Cost TabsTrigger onClick fired",
-                                  data: { stepId: step.id },
-                                  timestamp: Date.now(),
-                                  sessionId: "debug-session",
-                                  runId: "run1",
-                                  hypothesisId: "D",
-                                }),
-                              }
-                            ).catch(() => {});
-                          }
-                          // #endregion
-                        }}
+                        onClick={() => {}}
                       >
                         <Icon className="h-4 w-4" />
                         {step.title}
@@ -907,31 +866,6 @@ export default function ProductWorkspace({ onUpdate }: ProductWorkspaceProps) {
 
               {workflowSteps.map((step) => {
                 const Icon = step.icon;
-                // #region agent log
-                if (step.id === "cost") {
-                  fetch(
-                    "http://127.0.0.1:7242/ingest/968d187c-a049-4e90-98da-550ce5ae9fdb",
-                    {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({
-                        location: "ProductWorkspace.tsx:692",
-                        message: "Rendering TabsContent for cost",
-                        data: {
-                          stepId: step.id,
-                          activeStep,
-                          shouldRender: activeStep === step.id,
-                          selectedProductId: !!selectedProductId,
-                        },
-                        timestamp: Date.now(),
-                        sessionId: "debug-session",
-                        runId: "run1",
-                        hypothesisId: "C",
-                      }),
-                    }
-                  ).catch(() => {});
-                }
-                // #endregion
                 return (
                   <TabsContent key={step.id} value={step.id} className="mt-6">
                     {/* Step Header */}
@@ -1014,33 +948,10 @@ export default function ProductWorkspace({ onUpdate }: ProductWorkspaceProps) {
                       )}
                       {step.id === "cost" && selectedProductId && (
                         <>
-                          {/* #region agent log */}
-                          {(() => {
-                            fetch(
-                              "http://127.0.0.1:7242/ingest/968d187c-a049-4e90-98da-550ce5ae9fdb",
-                              {
-                                method: "POST",
-                                headers: { "Content-Type": "application/json" },
-                                body: JSON.stringify({
-                                  location: "ProductWorkspace.tsx:756",
-                                  message: "Rendering CostView component",
-                                  data: {
-                                    productId: selectedProductId,
-                                    moduleId: selectedModuleId,
-                                  },
-                                  timestamp: Date.now(),
-                                  sessionId: "debug-session",
-                                  runId: "run1",
-                                  hypothesisId: "C",
-                                }),
-                              }
-                            ).catch(() => {});
-                            return null;
-                          })()}
-                          {/* #endregion */}
                           <CostView
                             productId={selectedProductId}
                             moduleId={selectedModuleId || undefined}
+                            highlightedCostId={highlightedCostId}
                           />
                         </>
                       )}

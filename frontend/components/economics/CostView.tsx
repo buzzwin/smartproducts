@@ -39,6 +39,8 @@ import {
   Cloud,
 } from "lucide-react";
 import CostForm from "./CostForm";
+import ShareButton from "../ShareButton";
+import { getCostShareUrl } from "@/lib/share";
 import { CloudCostSyncModal } from "./CloudCostSyncModal";
 import {
   LineChart,
@@ -54,9 +56,10 @@ import {
 interface CostViewProps {
   productId: string;
   moduleId?: string;
+  highlightedCostId?: string | null; // Optional cost ID to highlight/scroll to
 }
 
-export default function CostView({ productId, moduleId }: CostViewProps) {
+export default function CostView({ productId, moduleId, highlightedCostId }: CostViewProps) {
   const [costs, setCosts] = useState<Cost[]>([]);
   const [features, setFeatures] = useState<Feature[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -111,6 +114,28 @@ export default function CostView({ productId, moduleId }: CostViewProps) {
       loadModules();
     }
   }, [productId]);
+
+  // Scroll to and highlight specific cost when highlightedCostId is provided
+  useEffect(() => {
+    if (highlightedCostId && costs.length > 0) {
+      const costElement = document.getElementById(`cost-${highlightedCostId}`);
+      if (costElement) {
+        // Scroll to the cost element
+        costElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        // Highlight it briefly
+        costElement.style.transition = 'background-color 0.3s';
+        costElement.style.backgroundColor = 'rgba(59, 130, 246, 0.1)';
+        setTimeout(() => {
+          costElement.style.backgroundColor = '';
+        }, 3000);
+        // Open the cost for editing/viewing
+        const highlightedCost = costs.find(c => c.id === highlightedCostId);
+        if (highlightedCost) {
+          setEditingCost(highlightedCost);
+        }
+      }
+    }
+  }, [highlightedCostId, costs]);
 
   const loadData = async () => {
     try {
@@ -921,6 +946,7 @@ export default function CostView({ productId, moduleId }: CostViewProps) {
                   {filteredDirectCosts.map((cost) => (
                     <div
                       key={cost.id}
+                      id={`cost-${cost.id}`}
                       className="border rounded p-4 hover:bg-gray-50 dark:hover:bg-gray-800"
                     >
                       <div className="flex justify-between items-center">
@@ -942,6 +968,11 @@ export default function CostView({ productId, moduleId }: CostViewProps) {
                             </div>
                           </div>
                           <div className="flex gap-2">
+                            <ShareButton
+                              url={getCostShareUrl(cost.id)}
+                              size="sm"
+                              variant="ghost"
+                            />
                             <Button
                               variant="ghost"
                               size="sm"
@@ -994,6 +1025,7 @@ export default function CostView({ productId, moduleId }: CostViewProps) {
                       {resourceCosts.direct_resource_costs.map((cost: Cost) => (
                         <div
                           key={cost.id}
+                          id={`cost-${cost.id}`}
                           className="border rounded p-3 hover:bg-gray-50 dark:hover:bg-gray-800"
                         >
                           <div className="flex justify-between items-center">
