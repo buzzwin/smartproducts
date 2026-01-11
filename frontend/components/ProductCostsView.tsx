@@ -5,6 +5,7 @@ import { productsAPI, unifiedCostsAPI } from '@/lib/api';
 import type { Product, Cost } from '@/types';
 import CostForm from './economics/CostForm';
 import Modal from './Modal';
+import { exportCostsReportToPDF } from '@/lib/exportUtils';
 
 interface ProductCostsViewProps {
   onUpdate?: () => void;
@@ -168,21 +169,44 @@ export default function ProductCostsView({ onUpdate }: ProductCostsViewProps) {
                   ${totalCost.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </div>
               </div>
-              <button
-                onClick={() => setShowCreateCost({ product: selectedProduct })}
-                style={{
-                  padding: '8px 16px',
-                  fontSize: '14px',
-                  backgroundColor: '#28a745',
-                  color: '#fff',
-                  border: 'none',
-                  borderRadius: '4px',
-                  cursor: 'pointer',
-                  fontWeight: 500,
-                }}
-              >
-                + Add Cost
-              </button>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button
+                  onClick={() => {
+                    if (selectedProduct && productCosts.length > 0) {
+                      exportCostsReportToPDF(selectedProduct, productCosts);
+                    } else {
+                      alert('No costs to export. Please add costs first.');
+                    }
+                  }}
+                  style={{
+                    padding: '8px 16px',
+                    fontSize: '14px',
+                    backgroundColor: '#007bff',
+                    color: '#fff',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    fontWeight: 500,
+                  }}
+                >
+                  Export PDF
+                </button>
+                <button
+                  onClick={() => setShowCreateCost({ product: selectedProduct })}
+                  style={{
+                    padding: '8px 16px',
+                    fontSize: '14px',
+                    backgroundColor: '#28a745',
+                    color: '#fff',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    fontWeight: 500,
+                  }}
+                >
+                  + Add Cost
+                </button>
+              </div>
             </div>
           </div>
         )}

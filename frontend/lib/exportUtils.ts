@@ -1,7 +1,7 @@
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import type { Task, Product, Feature, Workstream, Phase, Resource, Module } from '@/types';
+import type { Task, Product, Feature, Workstream, Phase, Resource, Module, Cost } from '@/types';
 
 interface TaskExportData {
   task: Task;
@@ -615,3 +615,235 @@ export async function exportFeatureReportToPDF(
   doc.save(filename);
 }
 
+// Costs Report Export Functions
+export function exportCostsReportToPDF(
+  product: Product,
+  costs: Cost[],
+  filename: string = 'costs-report.pdf'
+) {
+  const doc = new jsPDF('portrait', 'mm', 'a4');
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const margin = 15;
+  let yPos = margin;
+
+  // Title
+  doc.setFontSize(18);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Costs Report', margin, yPos);
+  yPos += 8;
+
+  // Product name
+  doc.setFontSize(14);
+  doc.setFont('helvetica', 'normal');
+  doc.text(`Product: ${product.name}`, margin, yPos);
+  yPos += 8;
+
+  // Generation date
+  doc.setFontSize(10);
+  doc.setTextColor(100, 100, 100);
+  doc.text(
+    `Generated on: ${new Date().toLocaleString()}`,
+    margin,
+    yPos
+  );
+  yPos += 10;
+
+  // Calculate totals
+  const totalCost = costs.reduce((sum, cost) => sum + cost.amount, 0);
+  
+  // Group by category
+  const costsByCategory: Record<string, Cost[]> = {};
+  costs.forEach(cost => {
+    const categoryKey = String(cost.category);
+    if (!costsByCategory[categoryKey]) {
+      costsByCategory[categoryKey] = [];
+    }
+    costsByCategory[categoryKey].push(cost);
+  });
+
+  // Group by classification (run/change)
+  const costsByClassification: Record<string, Cost[]> = {};
+  costs.forEach(cost => {
+    const classification = cost.cost_classification || 'unclassified';
+    if (!costsByClassification[classification]) {
+      costsByClassification[classification] = [];
+    }
+    costsByClassification[classification].push(cost);
+  });
+
+  const runTotal = (costsByClassification['run'] || []).reduce((sum, cost) => sum + cost.amount, 0);
+  const changeTotal = (costsByClassification['change'] || []).reduce((sum, cost) => sum + cost.amount, 0);
+
+  // Summary Section
+  doc.setFontSize(14);
+  doc.setTextColor(0, 0, 0);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Summary', margin, yPos);
+  yPos += 8;
+
+  doc.setFontSize(11);
+  doc.setFont('helvetica', 'normal');
+  
+  // Total Cost
+  doc.setFont('helvetica', 'bold');
+  doc.text('Total Cost:', margin, yPos);
+  doc.setFont('helvetica', 'normal');
+  const currency = costs[0]?.currency || 'USD';
+  doc.text(
+    `${currency} ${totalCost.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+    margin + 35,
+    yPos
+  );
+  yPos += 7;
+
+  // Run/Change breakdown if applicable
+  if (costs.some(c => c.cost_classification)) {
+    doc.setFont('helvetica', 'bold');
+    doc.text('Run Costs:', margin, yPos);
+    doc.setFont('helvetica', 'normal');
+    doc.text(
+      `${currency} ${runTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      margin + 35,
+      yPos
+    );
+    yPos += 7;
+
+    doc.setFont('helvetica', 'bold');
+    doc.text('Change Costs:', margin, yPos);
+    doc.setFont('helvetica', 'normal');
+    doc.text(
+      `${currency} ${changeTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      margin + 35,
+      yPos
+    );
+    yPos += 7;
+  }
+
+  // Total number of cost items
+  doc.setFont('helvetica', 'bold');
+  doc.text('Total Items:', margin, yPos);
+  doc.setFont('helvetica', 'normal');
+  doc.text(`${costs.length}`, margin + 35, yPos);
+  yPos += 10;
+
+  // Category Breakdown Section
+  if (Object.keys(costsByCategory).length > 0) {
+    if (yPos > pageHeight - 60) {
+      doc.addPage();
+      yPos = margin;
+    }
+
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Breakdown by Category', margin, yPos);
+    yPos += 8;
+
+    // Category totals table
+    const categoryTotalsData: string[][] = [];
+    Object.entries(costsByCategory)
+      .sort(([, a], [, b]) => {
+        const totalA = a.reduce((sum, cost) => sum + cost.amount, 0);
+        const totalB = b.reduce((sum, cost) => sum + cost.amount, 0);
+        return totalB - totalA;
+      })
+      .forEach(([category, categoryCosts]) => {
+        const categoryTotal = categoryCosts.reduce((sum, cost) => sum + cost.amount, 0);
+        categoryTotalsData.push([
+          category.charAt(0).toUpperCase() + category.slice(1),
+          `${currency} ${categoryTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+          categoryCosts.length.toString()
+        ]);
+      });
+
+    autoTable(doc, {
+      head: [['Category', 'Total', 'Items']],
+      body: categoryTotalsData,
+      startY: yPos,
+      styles: { fontSize: 10 },
+      headStyles: { fillColor: [66, 139, 202], textColor: 255, fontStyle: 'bold' },
+      alternateRowStyles: { fillColor: [245, 245, 245] },
+      margin: { left: margin, right: margin },
+      columnStyles: {
+        0: { cellWidth: 60 },
+        1: { cellWidth: 60, halign: 'right' },
+        2: { cellWidth: 30, halign: 'right' }
+      }
+    });
+
+    // Get final Y position after table
+    const finalY = (doc as any).lastAutoTable?.finalY || yPos;
+    yPos = finalY + 10;
+  }
+
+  // Detailed Cost Items Section
+  if (costs.length > 0) {
+    if (yPos > pageHeight - 60) {
+      doc.addPage();
+      yPos = margin;
+    }
+
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Detailed Cost Items', margin, yPos);
+    yPos += 8;
+
+    // Prepare table data
+    const tableData = costs.map((cost) => [
+      cost.name.substring(0, 35) + (cost.name.length > 35 ? '...' : ''),
+      String(cost.category).charAt(0).toUpperCase() + String(cost.category).slice(1),
+      String(cost.scope).charAt(0).toUpperCase() + String(cost.scope).slice(1),
+      String(cost.cost_type).charAt(0).toUpperCase() + String(cost.cost_type).slice(1),
+      String(cost.recurrence || '-').charAt(0).toUpperCase() + String(cost.recurrence || '-').slice(1),
+      cost.cost_classification ? String(cost.cost_classification).charAt(0).toUpperCase() + String(cost.cost_classification).slice(1) : '-',
+      `${cost.currency} ${cost.amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+    ]);
+
+    autoTable(doc, {
+      head: [['Name', 'Category', 'Scope', 'Type', 'Recurrence', 'Classification', 'Amount']],
+      body: tableData,
+      startY: yPos,
+      styles: { fontSize: 8 },
+      headStyles: { fillColor: [66, 139, 202], textColor: 255, fontStyle: 'bold' },
+      alternateRowStyles: { fillColor: [245, 245, 245] },
+      margin: { left: margin, right: margin },
+      columnStyles: {
+        0: { cellWidth: 45 },
+        1: { cellWidth: 25 },
+        2: { cellWidth: 25 },
+        3: { cellWidth: 25 },
+        4: { cellWidth: 25 },
+        5: { cellWidth: 30 },
+        6: { cellWidth: 35, halign: 'right' }
+      }
+    });
+
+    // Get final Y position after table
+    const finalY = (doc as any).lastAutoTable?.finalY || yPos;
+    yPos = finalY + 10;
+  }
+
+  // Add total at the bottom of last page
+  if (yPos > pageHeight - 30) {
+    doc.addPage();
+    yPos = margin;
+  }
+
+  doc.setFontSize(12);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(66, 139, 202);
+  doc.text(
+    `Grand Total: ${currency} ${totalCost.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+    margin,
+    yPos
+  );
+
+  // Generate filename if not provided
+  if (filename === 'costs-report.pdf') {
+    const safeProductName = product.name.replace(/[^a-z0-9]/gi, '-').toLowerCase();
+    filename = `costs-report-${safeProductName}-${new Date().toISOString().split('T')[0]}.pdf`;
+  }
+
+  // Save PDF
+  doc.save(filename);
+}
