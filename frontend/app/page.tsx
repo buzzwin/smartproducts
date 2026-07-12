@@ -43,6 +43,7 @@ import Chatbot from "@/components/Chatbot";
 import EmailControlStation from "@/components/email-agent/EmailControlStation";
 import CostTotalsSummary from "@/components/CostTotalsSummary";
 import LandingPage from "@/components/LandingPage";
+import MobileTabBar from "@/components/MobileTabBar";
 
 function HomeContent() {
   const searchParams = useSearchParams();
@@ -339,21 +340,21 @@ function HomeContent() {
 
   return (
     <div className="container">
-      <div className="header flex justify-between items-center mb-5">
-        <h1 className="text-foreground">SmartProducts Platform</h1>
-        <div className="flex gap-3 items-center">
+      <div className="header sticky top-0 z-40 flex justify-between items-center mb-5 !bg-background/80 backdrop-blur-lg safe-top">
+        <h1 className="text-foreground !text-xl md:!text-[28px]">SmartProducts</h1>
+        <div className="flex gap-2 md:gap-3 items-center">
           <ThemeToggle />
           <SignedIn>
             <Link href="/health">
-              <Button variant="outline" size="sm">
-                <Activity className="h-4 w-4 mr-2" />
-                Health
+              <Button variant="outline" size="sm" className="px-2.5 sm:px-3">
+                <Activity className="h-4 w-4 sm:mr-2" />
+                <span className="hidden sm:inline">Health</span>
               </Button>
             </Link>
             <Link href="/organization">
-              <Button variant="outline" size="sm">
-                <Settings className="h-4 w-4 mr-2" />
-                Organization
+              <Button variant="outline" size="sm" className="px-2.5 sm:px-3">
+                <Settings className="h-4 w-4 sm:mr-2" />
+                <span className="hidden sm:inline">Organization</span>
               </Button>
             </Link>
             <UserButton />
@@ -371,9 +372,9 @@ function HomeContent() {
       </SignedOut>
 
       <SignedIn>
-        <>
-          {/* Primary Navigation */}
-          <div className="flex gap-2 mb-5 border-b-2 border-border">
+        <div className="pb-24 md:pb-0">
+          {/* Primary Navigation (desktop) */}
+          <div className="hidden md:flex gap-2 mb-5 border-b-2 border-border">
             <Button
               type="button"
               onClick={() => setActiveTab("workspace")}
@@ -415,7 +416,7 @@ function HomeContent() {
 
           {/* Sub-navigation for Management */}
           {activeTab === "management" && (
-            <div className="flex gap-2 mb-5 p-2.5 bg-muted rounded-lg flex-wrap">
+            <div className="flex gap-2 mb-5 p-2.5 bg-muted rounded-lg flex-nowrap overflow-x-auto no-scrollbar scroll-touch md:flex-wrap [&>button]:shrink-0">
               <Button
                 type="button"
                 onClick={() => setManagementSubTab("products")}
@@ -857,7 +858,10 @@ function HomeContent() {
               )}
             </>
           )}
-        </>
+
+          {/* iOS-style bottom tab bar (mobile only) */}
+          <MobileTabBar activeTab={activeTab} onChange={setActiveTab} />
+        </div>
       </SignedIn>
 
       {/* AI Chatbot - Available everywhere */}

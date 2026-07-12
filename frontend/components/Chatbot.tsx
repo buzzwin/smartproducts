@@ -740,7 +740,7 @@ export default function Chatbot({
           onClick={() => setOpen(true)}
           variant="outline"
           size="sm"
-          className="fixed right-4 bottom-4 z-50 rounded-full shadow-lg"
+          className="fixed right-4 bottom-24 md:bottom-4 z-50 rounded-full shadow-lg"
         >
           <MessageSquare className="mr-2 w-5 h-5" />
           AI Chatbot

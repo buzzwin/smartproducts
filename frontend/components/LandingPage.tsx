@@ -96,7 +96,7 @@ const highlights = [
 
 export default function LandingPage() {
   return (
-    <div className="flex flex-col gap-20 py-8 md:py-12">
+    <div className="flex flex-col gap-14 md:gap-20 py-6 md:py-12">
       {/* Hero */}
       <section className="flex flex-col items-center text-center gap-6">
         <Badge variant="secondary" className="gap-1.5 px-3 py-1">
@@ -112,15 +112,15 @@ export default function LandingPage() {
           of Ownership tracking — with cloud cost sync and an AI assistant — so
           your team can plan, ship, and account for every product decision.
         </p>
-        <div className="flex flex-col sm:flex-row gap-3 mt-2">
+        <div className="flex flex-col sm:flex-row gap-3 mt-2 w-full max-w-xs sm:max-w-none sm:w-auto">
           <SignUpButton mode="modal">
-            <Button size="lg" className="gap-2">
+            <Button size="lg" className="gap-2 w-full sm:w-auto">
               Get started
               <ArrowRight className="h-4 w-4" />
             </Button>
           </SignUpButton>
           <SignInButton mode="modal">
-            <Button size="lg" variant="outline">
+            <Button size="lg" variant="outline" className="w-full sm:w-auto">
               Sign in
             </Button>
           </SignInButton>
@@ -217,15 +217,15 @@ export default function LandingPage() {
           Sign in to access your workspace, or create an account to start
           planning, tracking, and costing your products today.
         </p>
-        <div className="flex flex-col sm:flex-row gap-3">
+        <div className="flex flex-col sm:flex-row gap-3 w-full max-w-xs sm:max-w-none sm:w-auto">
           <SignUpButton mode="modal">
-            <Button size="lg" className="gap-2">
+            <Button size="lg" className="gap-2 w-full sm:w-auto">
               Get started free
               <ArrowRight className="h-4 w-4" />
             </Button>
           </SignUpButton>
           <SignInButton mode="modal">
-            <Button size="lg" variant="outline">
+            <Button size="lg" variant="outline" className="w-full sm:w-auto">
               Sign in
             </Button>
           </SignInButton>
