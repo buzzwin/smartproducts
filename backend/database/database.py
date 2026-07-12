@@ -773,3 +773,25 @@ async def get_db_session():
         # For MongoDB, we don't use sessions
         yield None
 
+
+async def ping_database() -> None:
+    """Lightweight connectivity check used by the /health endpoint.
+
+    Raises the underlying driver exception if the configured database cannot be
+    reached, so callers can surface a clear "database unavailable" signal
+    instead of letting a real query fail deeper in the stack.
+    """
+    if db_config.is_sql:
+        if get_session is None:
+            raise RuntimeError("SQLAlchemy is not installed.")
+        from sqlalchemy import text
+        async for session in get_session():
+            await session.execute(text("SELECT 1"))
+            break
+    else:  # MongoDB
+        if get_mongodb_database is None:
+            raise RuntimeError("MongoDB driver is not installed.")
+        database = get_mongodb_database()
+        # `ping` is a cheap admin command that forces server selection.
+        await database.client.admin.command("ping")
+

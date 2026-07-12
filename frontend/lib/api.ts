@@ -35,12 +35,24 @@ export async function fetchAPI<T>(endpoint: string, options?: RequestInit, timeo
     }
 
     if (!response.ok) {
-      const error = await response.json().catch(() => ({ detail: 'An error occurred' }));
-      
+      const error = await response
+        .json()
+        .catch(() => ({ detail: `Request failed with status ${response.status}` }));
+
       if (endpoint.includes('/azure-costs/')) {
         console.error(`[FRONTEND DEBUG] fetchAPI - Response error:`, error);
       }
-      
+
+      // Database connectivity: the backend returns a structured 503 so the UI
+      // can show a clear "database unavailable" message instead of a generic one.
+      if (response.status === 503 || error?.error_type === 'database_unavailable') {
+        throw new Error(
+          typeof error?.detail === 'string'
+            ? error.detail
+            : 'Database connection error. The service could not reach its database.'
+        );
+      }
+
       // Handle FastAPI validation errors (422)
       if (response.status === 422 && Array.isArray(error.detail)) {
         const validationErrors = error.detail
@@ -51,12 +63,17 @@ export async function fetchAPI<T>(endpoint: string, options?: RequestInit, timeo
           .join(', ');
         throw new Error(`Validation error: ${validationErrors}`);
       }
-      
+
       // Handle other error formats
       if (error.detail) {
         throw new Error(typeof error.detail === 'string' ? error.detail : JSON.stringify(error.detail));
       }
-      
+
+      // Fall back to any message the backend/proxy provided, then the status.
+      if (error?.message || error?.error) {
+        throw new Error(String(error.message || error.error));
+      }
+
       throw new Error(`HTTP error! status: ${response.status}`);
     }
 

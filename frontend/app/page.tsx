@@ -28,6 +28,7 @@ import Link from "next/link";
 import { Settings, Activity } from "lucide-react";
 import LandingPage from "@/components/LandingPage";
 import MobileTabBar from "@/components/MobileTabBar";
+import SystemHealthBanner from "@/components/SystemHealthBanner";
 
 // Heavy, tab-gated panels are code-split so they load on demand. This keeps
 // them out of the initial bundle — notably, the signed-out landing page no
@@ -419,6 +420,9 @@ function HomeContent() {
 
       <SignedIn>
         <div className="pb-24 md:pb-0">
+          {/* Surfaces API / database connectivity problems on the dashboard */}
+          <SystemHealthBanner />
+
           {/* Primary Navigation (desktop) */}
           <div className="hidden md:flex gap-2 mb-5 border-b-2 border-border">
             <Button

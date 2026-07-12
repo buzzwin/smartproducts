@@ -7,8 +7,11 @@ backend_dir = Path(__file__).parent.parent
 if str(backend_dir) not in sys.path:
     sys.path.insert(0, str(backend_dir))
 
-from fastapi import FastAPI
+import asyncio
+
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from app.routers import (
     products, costs, unified_costs, scenarios, csv_import, features, resources, vendors,
     workstreams, phases, tasks, strategies, problems, interviews, decisions, releases,
@@ -17,8 +20,22 @@ from app.routers import (
     usage_metrics, notifications, modules, cloud_configs, aws_costs, azure_costs, gmail, email_agent,
     email_accounts
 )
-from database.database import init_database
+from database.database import init_database, ping_database
 from app.services.scheduler import get_email_scheduler
+
+# Build the set of driver exceptions that indicate the database is unreachable.
+# Imported defensively so the app still boots if a given driver isn't installed.
+_DB_CONNECTION_ERRORS: tuple = ()
+try:
+    from pymongo.errors import PyMongoError  # type: ignore
+    _DB_CONNECTION_ERRORS += (PyMongoError,)
+except ImportError:
+    pass
+try:
+    from sqlalchemy.exc import OperationalError, InterfaceError, DBAPIError  # type: ignore
+    _DB_CONNECTION_ERRORS += (OperationalError, InterfaceError, DBAPIError)
+except ImportError:
+    pass
 
 app = FastAPI(
     title="SmartProducts Platform API",
@@ -75,6 +92,42 @@ app.include_router(email_agent.router)
 app.include_router(email_accounts.router)
 
 
+async def _database_unavailable_handler(request: Request, exc: Exception):
+    """Return a structured 503 when the database can't be reached.
+
+    Without this, a driver connection error bubbles up as an unhandled 500 with
+    a plain-text body, which the frontend can only show as a generic
+    "An error occurred". A clear JSON payload lets the UI say the database is
+    unreachable.
+    """
+    print(f"⚠️  Database unavailable: {type(exc).__name__}: {exc}")
+    return JSONResponse(
+        status_code=503,
+        content={
+            "detail": "Database connection error. The service could not reach its database.",
+            "error_type": "database_unavailable",
+        },
+    )
+
+
+# Register the DB connection handler for every driver exception type available.
+for _exc_cls in _DB_CONNECTION_ERRORS:
+    app.add_exception_handler(_exc_cls, _database_unavailable_handler)
+
+
+@app.exception_handler(Exception)
+async def _unhandled_exception_handler(request: Request, exc: Exception):
+    """Ensure unexpected errors return JSON (not plain text) so the frontend can
+    parse a meaningful message. HTTPException/validation errors keep their own
+    built-in handlers and are unaffected."""
+    print(f"❌ Unhandled error on {request.method} {request.url.path}: "
+          f"{type(exc).__name__}: {exc}")
+    return JSONResponse(
+        status_code=500,
+        content={"detail": f"Internal server error: {type(exc).__name__}"},
+    )
+
+
 @app.on_event("startup")
 async def startup_event():
     """Initialize database and services on startup."""
@@ -99,6 +152,22 @@ async def root():
 
 @app.get("/health")
 async def health():
-    """Health check endpoint."""
-    return {"status": "healthy"}
+    """Health check that verifies database connectivity.
+
+    Returns 200 when the database is reachable and 503 (status "degraded")
+    when it is not, so the frontend can surface a clear connectivity banner.
+    """
+    try:
+        await asyncio.wait_for(ping_database(), timeout=5)
+        return {"status": "healthy", "database": "connected"}
+    except Exception as exc:
+        print(f"⚠️  Health check: database unreachable: {type(exc).__name__}: {exc}")
+        return JSONResponse(
+            status_code=503,
+            content={
+                "status": "degraded",
+                "database": "disconnected",
+                "detail": "Database connection error. The service could not reach its database.",
+            },
+        )
 
