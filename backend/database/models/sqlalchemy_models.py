@@ -1,6 +1,6 @@
 """SQLAlchemy ORM models for SQL databases."""
 from datetime import datetime
-from sqlalchemy import Column, String, Float, DateTime, ForeignKey, Text, JSON, Integer, and_
+from sqlalchemy import Column, String, Float, DateTime, ForeignKey, Text, JSON, Integer, Boolean, and_
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship, foreign
 from sqlalchemy.sql import func

@@ -210,7 +210,28 @@ class MongoDBUnifiedCostRepository(MongoDBRepository[Cost]):
         database["costs"].create_index([("category", ASCENDING)])
         database["costs"].create_index([("cost_type", ASCENDING)])
         database["costs"].create_index([("recurrence", ASCENDING)])
-    
+
+    async def get_all(self, skip: int = 0, limit: Optional[int] = None) -> List[Cost]:
+        """Get all costs.
+
+        Unlike the base repository, costs are not capped at 100 by default:
+        the workspace Cost Totals / TCO views sum across every cost, so a cap
+        would silently under-count once a workspace exceeds the page size.
+        """
+        cursor = self.collection.find().skip(skip)
+        if limit is not None:
+            cursor = cursor.limit(limit)
+        docs = await cursor.to_list(length=limit)
+        return [self._to_domain(doc) for doc in docs]
+
+    async def find_by(self, filters: Dict[str, Any], skip: int = 0, limit: Optional[int] = None) -> List[Cost]:
+        """Find costs by filters, unbounded by default (see get_all)."""
+        cursor = self.collection.find(filters).skip(skip)
+        if limit is not None:
+            cursor = cursor.limit(limit)
+        docs = await cursor.to_list(length=limit)
+        return [self._to_domain(doc) for doc in docs]
+
     async def get_by_product(self, product_id: str) -> List[Cost]:
         """Get all costs for a product."""
         return await self.find_by({"product_id": product_id})

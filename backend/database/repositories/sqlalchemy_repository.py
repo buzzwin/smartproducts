@@ -832,7 +832,34 @@ class SQLUnifiedCostRepository(SQLAlchemyRepository[Cost]):
     
     def __init__(self, session: AsyncSession):
         super().__init__(session, SQLCost, Cost)
-    
+
+    async def get_all(self, skip: int = 0, limit: Optional[int] = None) -> List[Cost]:
+        """Get all costs.
+
+        Unlike the base repository, costs are not capped at 100 by default:
+        the workspace Cost Totals / TCO views sum across every cost, so a cap
+        would silently under-count once a workspace exceeds the page size.
+        """
+        query = select(self.model_class).offset(skip)
+        if limit is not None:
+            query = query.limit(limit)
+        result = await self.session.execute(query)
+        db_models = result.scalars().all()
+        return [self._to_domain(model) for model in db_models]
+
+    async def find_by(self, filters: Dict[str, Any], skip: int = 0, limit: Optional[int] = None) -> List[Cost]:
+        """Find costs by filters, unbounded by default (see get_all)."""
+        query = select(self.model_class)
+        for key, value in filters.items():
+            if hasattr(self.model_class, key):
+                query = query.where(getattr(self.model_class, key) == value)
+        query = query.offset(skip)
+        if limit is not None:
+            query = query.limit(limit)
+        result = await self.session.execute(query)
+        db_models = result.scalars().all()
+        return [self._to_domain(model) for model in db_models]
+
     async def get_by_product(self, product_id: str) -> List[Cost]:
         """Get all costs for a product."""
         return await self.find_by({"product_id": product_id})
