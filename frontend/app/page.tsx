@@ -24,7 +24,6 @@ import StrategyList from "@/components/strategy/StrategyList";
 import CostList from "@/components/economics/CostList";
 import ProblemListManagement from "@/components/discovery/ProblemListManagement";
 import ReportsView from "@/components/reports/ReportsView";
-import Modal from "@/components/Modal";
 import VendorList from "@/components/VendorList";
 import { UserButton } from "@/components/UserButton";
 import { Button } from "@/components/ui/button";
