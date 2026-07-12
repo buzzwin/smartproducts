@@ -12,19 +12,7 @@ import {
   featuresAPI,
 } from "@/lib/api";
 import type { Product, CostItem, CostScenario, Module, Phase } from "@/types";
-import ProductList from "@/components/ProductList";
-import ResourceList from "@/components/ResourceList";
-import TaskList from "@/components/TaskList";
-import FeatureList from "@/components/FeatureList";
-import ProductWorkspace from "@/components/ProductWorkspace";
-import ModuleList from "@/components/modules/ModuleList";
-import StakeholderList from "@/components/stakeholders/StakeholderList";
-import PhaseList from "@/components/PhaseList";
-import StrategyList from "@/components/strategy/StrategyList";
-import CostList from "@/components/economics/CostList";
-import ProblemListManagement from "@/components/discovery/ProblemListManagement";
-import ReportsView from "@/components/reports/ReportsView";
-import VendorList from "@/components/VendorList";
+import dynamic from "next/dynamic";
 import { UserButton } from "@/components/UserButton";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -38,11 +26,70 @@ import {
 import { ThemeToggle } from "@/components/ThemeToggle";
 import Link from "next/link";
 import { Settings, Activity } from "lucide-react";
-import Chatbot from "@/components/Chatbot";
-import EmailControlStation from "@/components/email-agent/EmailControlStation";
-import CostTotalsSummary from "@/components/CostTotalsSummary";
 import LandingPage from "@/components/LandingPage";
 import MobileTabBar from "@/components/MobileTabBar";
+
+// Heavy, tab-gated panels are code-split so they load on demand. This keeps
+// them out of the initial bundle — notably, the signed-out landing page no
+// longer ships the entire authenticated app.
+const PanelLoader = () => (
+  <div className="flex items-center justify-center py-16 text-muted-foreground">
+    Loading…
+  </div>
+);
+
+const ProductWorkspace = dynamic(() => import("@/components/ProductWorkspace"), {
+  loading: PanelLoader,
+});
+const CostTotalsSummary = dynamic(
+  () => import("@/components/CostTotalsSummary"),
+  { loading: PanelLoader }
+);
+const ReportsView = dynamic(() => import("@/components/reports/ReportsView"), {
+  loading: PanelLoader,
+});
+const ProductList = dynamic(() => import("@/components/ProductList"), {
+  loading: PanelLoader,
+});
+const ModuleList = dynamic(() => import("@/components/modules/ModuleList"), {
+  loading: PanelLoader,
+});
+const FeatureList = dynamic(() => import("@/components/FeatureList"), {
+  loading: PanelLoader,
+});
+const ResourceList = dynamic(() => import("@/components/ResourceList"), {
+  loading: PanelLoader,
+});
+const VendorList = dynamic(() => import("@/components/VendorList"), {
+  loading: PanelLoader,
+});
+const TaskList = dynamic(() => import("@/components/TaskList"), {
+  loading: PanelLoader,
+});
+const StakeholderList = dynamic(
+  () => import("@/components/stakeholders/StakeholderList"),
+  { loading: PanelLoader }
+);
+const PhaseList = dynamic(() => import("@/components/PhaseList"), {
+  loading: PanelLoader,
+});
+const StrategyList = dynamic(
+  () => import("@/components/strategy/StrategyList"),
+  { loading: PanelLoader }
+);
+const CostList = dynamic(() => import("@/components/economics/CostList"), {
+  loading: PanelLoader,
+});
+const ProblemListManagement = dynamic(
+  () => import("@/components/discovery/ProblemListManagement"),
+  { loading: PanelLoader }
+);
+const EmailControlStation = dynamic(
+  () => import("@/components/email-agent/EmailControlStation"),
+  { loading: PanelLoader }
+);
+// Floating widget — client-only, no need to server-render.
+const Chatbot = dynamic(() => import("@/components/Chatbot"), { ssr: false });
 
 function HomeContent() {
   const searchParams = useSearchParams();
