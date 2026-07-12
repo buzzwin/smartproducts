@@ -42,6 +42,7 @@ import { Settings, Activity } from "lucide-react";
 import Chatbot from "@/components/Chatbot";
 import EmailControlStation from "@/components/email-agent/EmailControlStation";
 import CostTotalsSummary from "@/components/CostTotalsSummary";
+import LandingPage from "@/components/LandingPage";
 
 function HomeContent() {
   const searchParams = useSearchParams();
@@ -366,17 +367,7 @@ function HomeContent() {
       </div>
 
       <SignedOut>
-        <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
-          <h2 className="text-2xl font-semibold">
-            Welcome to SmartProducts Platform
-          </h2>
-          <p className="text-muted-foreground">
-            Please sign in to access the platform
-          </p>
-          <SignInButton mode="modal">
-            <Button size="lg">Sign In</Button>
-          </SignInButton>
-        </div>
+        <LandingPage />
       </SignedOut>
 
       <SignedIn>
