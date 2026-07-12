@@ -45,18 +45,25 @@ class CostType(BaseEntity):
 
 
 class Cost(BaseEntity):
-    """Atomic cost - can be at any scope."""
+    """Atomic cost - can be at any scope.
+
+    Note: the taxonomy fields below carry safe defaults so that legacy or
+    partially-populated documents (e.g. costs created before the unified model
+    added `scope`/`category`/`cost_type`/`recurrence`) can still be read back
+    without raising a validation error and 500-ing list endpoints. Strict
+    validation on creation is enforced separately by the CostCreate schema.
+    """
     product_id: str
     module_id: Optional[str] = None  # Optional - for module-level costs
-    scope: str  # "task", "capability", "module", "product", "shared"
+    scope: str = "product"  # "task", "capability", "module", "product", "shared"
     scope_id: Optional[str] = None  # ID of task/capability/module if scope is task/capability/module
-    category: str  # "build", "run", "maintain", "scale", "overhead"
-    cost_type: str  # "labor", "infra", "license", "vendor", "other"
+    category: str = "overhead"  # "build", "run", "maintain", "scale", "overhead"
+    cost_type: str = "other"  # "labor", "infra", "license", "vendor", "other"
     cost_type_id: Optional[str] = None  # Link to CostType if exists
-    name: str
-    amount: float
+    name: str = "Unnamed cost"
+    amount: float = 0.0
     currency: str = "USD"
-    recurrence: str  # "one-time", "monthly", "quarterly", "annual"
+    recurrence: str = "one-time"  # "one-time", "monthly", "quarterly", "annual"
     amortization_period: Optional[int] = None  # Months to amortize
     time_period_start: Optional[datetime] = None
     time_period_end: Optional[datetime] = None
